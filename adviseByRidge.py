@@ -89,48 +89,51 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 def main():
     NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
     output_file_name = 'ridge.html'  # 输出文件名
+    results = []  # 收集结果以便于同时写入文件和屏幕显示
 
-    # 打开输出文件准备写入
+    # 确保输出目录存在
+    if not os.path.exists('docs'):
+        os.makedirs('docs')
+
+    with open('stockList.txt', 'r', encoding='utf-8') as file_list:
+        lines = file_list.readlines()
+
+    for line in lines:
+        parts = line.strip().split(' ')
+        if len(parts) != 3:
+            continue
+
+        stock_code = parts[0]
+        stock_name = parts[1]
+        stock_type = parts[2]
+
+        try:
+            (revenue_per_share_yoy, price_data, revenue_per_share, PB,
+             revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
+             total_shareholders_count, latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, stock_code)
+
+            result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
+                                   revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
+                                   majority_shareholders_share_ratio, total_shareholders_count,
+                                   latest_close_price)
+
+            if result:
+                print(result)
+                results.append(result)
+
+        except ValueError as e:
+            error_message = f"<p>处理股票 {stock_code} 时出错: {e}</p>"
+            # 收集错误信息
+            results.append(error_message)
+
+    # 写入 HTML 文件
     with open(f'docs/{output_file_name}', 'w', encoding='utf-8') as file:
-        file.write('<html><head><title>Stock Analysis Results</title></head><body>\n')
-        file.write('<h1>Stock Analysis Results</h1>\n')
-
-        with open('stockList.txt', 'r', encoding='utf-8') as file_list:
-            lines = file_list.readlines()
-
-        for line in lines:
-            parts = line.strip().split(' ')
-            if len(parts) != 3:
-                continue
-
-            stock_code = parts[0]
-            stock_name = parts[1]
-            stock_type = parts[2]
-
-            try:
-                (revenue_per_share_yoy, price_data, revenue_per_share, PB,
-                 revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
-                 total_shareholders_count, latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, stock_code)
-
-                result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
-                                       revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
-                                       majority_shareholders_share_ratio, total_shareholders_count,
-                                       latest_close_price)
-
-                if result:
-                    # 输出到终端
-                    print(result)
-                    # 写入到 HTML 文件
-                    file.write(result)
-
-            except ValueError as e:
-                error_message = f"<p>Error processing stock {stock_code}: {e}</p>"
-                # 输出到终端
-                print(error_message)
-                # 写入到 HTML 文件
-                file.write(error_message)
-
+        file.write('<html><head><title>股票分析结果</title></head><body>\n')
+        file.write('<h1>股票分析结果</h1>\n')
+        for result in results:
+            file.write(result)
         file.write('</body></html>\n')
+
 
     # 打印实际使用的数据点数量
     if 'price_data' in locals():
