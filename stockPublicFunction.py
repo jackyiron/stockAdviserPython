@@ -7,6 +7,18 @@ import sys
 from bs4 import BeautifulSoup
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import matplotlib.pyplot as plt
+from fastdtw import fastdtw
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+from scipy.spatial.distance import euclidean
+from fastdtw import fastdtw
+import numpy as np
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import GridSearchCV
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 
 os.environ['PYTHONUNBUFFERED'] = '1'
 sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
@@ -213,7 +225,7 @@ def normalize_and_standardize_data(X):
 
     # 处理极端值：向量化处理
     median = np.median(X, axis=0)
-    iqr = np.percentile(X, 75, axis=0) - np.percentile(X, 25, axis=0)
+    iqr = np.percentile(X, 90, axis=0) - np.percentile(X, 10, axis=0)
 
     # 设置上下限
     lower_bound = median - 3 * iqr

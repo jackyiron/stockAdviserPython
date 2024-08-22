@@ -1,11 +1,4 @@
-from sklearn.linear_model import RidgeCV
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
-from scipy.spatial.distance import euclidean
-from fastdtw import fastdtw
-import numpy as np
-
-from sklearn.impute import SimpleImputer
+from sklearn.linear_model import Ridge
 
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
@@ -33,26 +26,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     revenue_normalized, _, scaler_X = normalize_and_standardize_data(revenue_series)
     price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
 
-    # 使用 fastdtw 对齐时间序列
-    distance, path = fastdtw(revenue_normalized, price_normalized, dist=euclidean)
-
-    # 根据 DTW 路径对齐数据
-    aligned_X = np.array([revenue_normalized[i] for i, _ in path])
-    aligned_y = np.array([price_normalized[j] for _, j in path]).flatten()
-
-    # 确保对齐后的时间序列长度一致
-    min_length = min(len(aligned_X), len(aligned_y))
-    aligned_X = aligned_X[:min_length]
-    aligned_y = aligned_y[:min_length]
-
     # 训练集和测试集划分
-    X_train, X_test, y_train, y_test = train_test_split(aligned_X, aligned_y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(revenue_normalized, price_normalized, test_size=0.2, random_state=42)
 
-    # 定义参数范围
-    alphas = np.logspace(-4, 4, 10)
+    # 设置 Alpha 值
+    alpha = 1.0  # 可以根据需要调整
 
-    # 使用 RidgeCV 自动选择最佳参数
-    ridge = RidgeCV(alphas=alphas, store_cv_results=True)
+    # 使用 Ridge 回归模型
+    ridge = Ridge(alpha=alpha)
     ridge.fit(X_train, y_train)
 
     # 预测和评估
@@ -79,18 +60,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         color = 'black'
         action = ''
 
-    result_message =  (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
-            f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
-            f'MSE: {final_mse:.2f} </span><br>')
-
-    # 调用绘图函数
-    # plot_dtw_error(aligned_X, aligned_y, distance, path)
+    result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
+                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
+                      f'MSE: {final_mse:.2f} </span><br>')
 
     return result_message
 
-
 def main():
-    NUM_DATA_POINTS = 40  # 控制要使用的數據點數量
+    NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
     output_file_name = 'ridge.html'  # 输出文件名
 
     # 打开输出文件准备写入
