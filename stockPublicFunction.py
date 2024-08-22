@@ -19,6 +19,8 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from tensorflow.keras.layers import Input, Dense
+from tensorflow.keras.models import Model
 
 os.environ['PYTHONUNBUFFERED'] = '1'
 sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
@@ -269,3 +271,34 @@ def plot_dtw_error(X, y, dtw_distance, dtw_path):
 
     plt.suptitle(f'DTW Distance: {dtw_distance:.2f}')
     plt.show()
+
+def build_autoencoder(input_dim, encoding_dim):
+    """构建自动编码器模型"""
+    # 编码器
+    input_layer = Input(shape=(input_dim,))
+    encoded = Dense(encoding_dim, activation='relu')(input_layer)
+
+    # 解码器
+    decoded = Dense(input_dim, activation='sigmoid')(encoded)
+
+    # 自动编码器模型
+    autoencoder = Model(inputs=input_layer, outputs=decoded)
+
+    # 编码器模型
+    encoder = Model(inputs=input_layer, outputs=encoded)
+
+    return autoencoder, encoder
+
+def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch_size=256):
+    """训练自动编码器并返回编码器"""
+    # 构建自动编码器
+    autoencoder, encoder = build_autoencoder(input_dim, encoding_dim)
+
+    # 编译模型
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+    # 训练自动编码器
+    autoencoder.fit(X_train, X_train, epochs=epochs, batch_size=batch_size, shuffle=True,
+                    validation_data=(X_test, X_test), verbose=0)
+
+    return encoder
