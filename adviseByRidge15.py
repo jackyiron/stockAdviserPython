@@ -227,20 +227,17 @@ def normalize_and_scale_data(X):
     """
     对输入数据X进行极端值处理、正则化和Z-score标准化。
     """
-    # 处理极端值：向量化处理
-    median = np.median(X, axis=0)
-    iqr = np.percentile(X, 75, axis=0) - np.percentile(X, 25, axis=0)
-
-    # 设置上下限
-    lower_bound = median - 3 * iqr
-    upper_bound = median + 3 * iqr
-
-    # 向量化处理极端值
-    X_clipped = np.clip(X, lower_bound, upper_bound)
+    # 处理极端值
+    for i in range(X.shape[1]):
+        median = np.median(X[:, i])
+        iqr = np.percentile(X[:, i], 75) - np.percentile(X[:, i], 25)
+        lower_bound = median - 3 * iqr
+        upper_bound = median + 3 * iqr
+        X[:, i] = np.clip(X[:, i], lower_bound, upper_bound)
 
     # Z-score标准化
     scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X_clipped)
+    X_scaled = scaler.fit_transform(X)
 
     return X_scaled, scaler
 
