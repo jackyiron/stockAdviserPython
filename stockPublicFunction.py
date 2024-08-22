@@ -35,7 +35,6 @@ HEADERS = {
     "x-csrf-token": "m5_fWNYl2lS5m4iIczHtKCm2wHDZI9S9mTlVt1l3aTjb3mg9DK9yfbtypwyRp60MEKT4KWzyuSq1r__ShI-Ddw"
 }
 
-
 def getLatestPrice():
     """從網頁獲取最新的股價"""
     headers = {
