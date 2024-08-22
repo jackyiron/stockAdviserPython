@@ -182,7 +182,8 @@ def fetch_stock_data(NUM_DATA_POINTS , stock_code):
 
     valid_length = min(NUM_DATA_POINTS, calculate_valid_length(price_data))
 
-    # 从最后开始提取有效长度的数据
+    # print("本次有效數據: " + str(valid_length))
+    # # 从最后开始提取有效长度的数据
     def get_last_valid_data(lst):
         valid_data = [x for x in lst if x is not None]
         return valid_data[-valid_length:]
@@ -224,22 +225,22 @@ def normalize_and_standardize_data(X):
         X = X.reshape(-1, 1)
 
     # 处理极端值：向量化处理
-    median = np.median(X, axis=0)
-    iqr = np.percentile(X, 90, axis=0) - np.percentile(X, 10, axis=0)
+    # median = np.median(X, axis=0)
+    # iqr = np.percentile(X, 90, axis=0) - np.percentile(X, 10, axis=0)
+    #
+    # # 设置上下限
+    # lower_bound = median - 3 * iqr
+    # upper_bound = median + 3 * iqr
 
-    # 设置上下限
-    lower_bound = median - 3 * iqr
-    upper_bound = median + 3 * iqr
-
-    # 向量化处理极端值
-    X_clipped = np.clip(X, lower_bound, upper_bound)
+    # # 向量化处理极端值
+    # X_clipped = np.clip(X, lower_bound, upper_bound)
 
     # 标准化
     standard_scaler = StandardScaler()
-    X_standardized = standard_scaler.fit_transform(X_clipped)
+    X_standardized = standard_scaler.fit_transform(X)
 
     # 归一化到 [0, 1] 范围
-    min_max_scaler = MinMaxScaler(feature_range=(0, 1))
+    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
     X_normalized = min_max_scaler.fit_transform(X_standardized)
 
     return X_normalized, min_max_scaler, standard_scaler

@@ -1,4 +1,7 @@
 from sklearn.linear_model import Ridge
+from sklearn.model_selection import GridSearchCV
+from sklearn.impute import SimpleImputer
+
 
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
@@ -22,28 +25,37 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     price_series = np.array(valid_price).reshape(-1, 1)
     revenue_series = np.array(valid_revenue).reshape(-1, 1)
 
+    # 使用 SimpleImputer 填充 NaN 值
+    imputer = SimpleImputer(strategy='mean')  # 可以选择 'mean', 'median', 'most_frequent', 'constant'
+    revenue_series = imputer.fit_transform(revenue_series)
+    price_series = imputer.fit_transform(price_series)
+
     # 正规化与归一化数据
     revenue_normalized, _, scaler_X = normalize_and_standardize_data(revenue_series)
     price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
 
+
     # 训练集和测试集划分
     X_train, X_test, y_train, y_test = train_test_split(revenue_normalized, price_normalized, test_size=0.2, random_state=42)
 
-    # 设置 Alpha 值
-    alpha = 1.0  # 可以根据需要调整
 
-    # 使用 Ridge 回归模型
-    ridge = Ridge(alpha=alpha)
-    ridge.fit(X_train, y_train)
+    # 使用 GridSearchCV 进行 alpha 参数优化
+    ridge = Ridge()
+    parameters = {'alpha': [0.1, 1.0, 10.0, 100.0, 200.0]}  # 你可以根据需要调整搜索的 alpha 值范围
+    grid_search = GridSearchCV(ridge, parameters, scoring='neg_mean_squared_error', cv=5)
+    grid_search.fit(X_train, y_train)
+
+    # 获取最佳模型
+    best_ridge = grid_search.best_estimator_
 
     # 预测和评估
-    y_pred_final = ridge.predict(X_test)
+    y_pred_final = best_ridge.predict(X_test)
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
     current_feature = np.array([[revenue_t3m_yoy[-1]]])
     current_feature_scaled = scaler_X.transform(current_feature)
-    estimated_price_scaled = ridge.predict(current_feature_scaled)
+    estimated_price_scaled = best_ridge.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
 
     # 计算价格差异
