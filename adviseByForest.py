@@ -24,25 +24,12 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     price_series = np.array(valid_price).reshape(-1, 1)
     revenue_series = np.array(valid_revenue).reshape(-1, 1)
 
-
     # 正规化与归一化数据
     revenue_normalized, _, scaler_X = normalize_and_standardize_data(revenue_series)
     price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
 
-    # 使用 fastdtw 对齐时间序列
-    distance, path = fastdtw(revenue_normalized, price_normalized, dist=euclidean)
-
-    # 根据 DTW 路径对齐数据
-    aligned_X = np.array([revenue_normalized[i] for i, _ in path])
-    aligned_y = np.array([price_normalized[j] for _, j in path]).flatten()
-
-    # 确保对齐后的时间序列长度一致
-    min_length = min(len(aligned_X), len(aligned_y))
-    aligned_X = aligned_X[:min_length]
-    aligned_y = aligned_y[:min_length]
-
     # 训练集和测试集划分
-    X_train, X_test, y_train, y_test = train_test_split(aligned_X, aligned_y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(revenue_normalized, price_normalized, test_size=0.2, random_state=42)
 
     # 使用 Random Forest 回归模型
     rf = RandomForestRegressor(n_estimators=100, random_state=42)
