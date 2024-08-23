@@ -20,10 +20,11 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from scipy.interpolate import CubicSpline
 
 os.environ['PYTHONUNBUFFERED'] = '1'
-sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
-sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
+# sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+# sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
 
 # 常量
 URL_TEMPLATE = "https://statementdog.com/api/v2/fundamentals/{stock_code}/2014/2024/cf?qbu=true&qf=analysis"
@@ -46,6 +47,46 @@ HEADERS = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     "x-csrf-token": "m5_fWNYl2lS5m4iIczHtKCm2wHDZI9S9mTlVt1l3aTjb3mg9DK9yfbtypwyRp60MEKT4KWzyuSq1r__ShI-Ddw"
 }
+
+
+def linear_interpolate_sign(data, target_length):
+    """
+    对符号数据进行线性插值处理，并保留符号数据的特性。
+    """
+    # 创建插值的原始索引
+    original_indices = np.arange(len(data))
+
+    # 创建目标索引
+    target_indices = np.linspace(0, len(data) - 1, target_length)
+
+    # 进行线性插值
+    interpolated_data = np.interp(target_indices, original_indices, data)
+
+    # 将插值后的数据取符号，确保仍然是 -1 或 1
+    interpolated_sign_data = np.sign(interpolated_data)
+
+    return interpolated_sign_data
+
+def extract_sign(data):
+    """
+    将正数转换为1，负数转换为-1。
+
+    参数:
+    - data: 包含数值的列表或数组。
+
+    返回:
+    - sign_data: 与输入数据相同长度的列表，正数为1，负数为-1。
+    """
+    sign_data = []
+    for x in data:
+        if x is None:
+            sign_data.append(None)  # 或者使用其他适合的填充值
+        elif x > 0:
+            sign_data.append(1)
+        else:
+            sign_data.append(-1)
+
+    return sign_data
 
 def getLatestPrice():
     """從網頁獲取最新的股價"""
@@ -116,19 +157,31 @@ def pad_list(lst, length):
         return lst + [None] * (length - len(lst))
     return lst[:length]
 
-def interpolate_quarterly_to_monthly(quarterly_data, num_months):
-    """将季度数据插值到每月数据"""
-    if len(quarterly_data) < 2:
-        return [None] * num_months
 
-    # 创建季度时间轴
+def interpolate_quarterly_to_monthly(quarterly_data, num_last_values):
+    """将季度数据插值到每月数据，并从插值结果中提取最后特定数量的数据点"""
+    if len(quarterly_data) < 2:
+        return [None] * (num_last_values * 3), [None] * num_last_values
+
+    # 计算插值的月数，取提取数据量的3倍
+    num_months = len(quarterly_data) * 3
+
+    # 创建季度时间轴，季度数据点的位置
     quarterly_indices = np.arange(len(quarterly_data)) * 3
     # 创建对应的月度时间轴
     monthly_indices = np.arange(num_months)
 
-    # 插值函数
-    interp_func = interp1d(quarterly_indices, quarterly_data, kind='linear', fill_value='extrapolate')
-    return interp_func(monthly_indices)
+    # 使用三次样条插值
+    cs = CubicSpline(quarterly_indices, quarterly_data, bc_type='natural')
+
+    # 计算月度数据
+    monthly_data = cs(monthly_indices)
+
+    # 获取最后特定数量的数据点
+    last_values = monthly_data[-num_last_values-2:-2]
+
+    return monthly_data, last_values
+
 
 def pad_data(data, length):
     """将数据填充到指定长度"""
@@ -152,6 +205,12 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     # 读取原始数据
     def extract_data(key):
         return [parse_float(item[1]) for item in monthly_data.get(key, {}).get("data", []) if item[1] != '無']
+    def extract_data_quarterly(key):
+        return [parse_float(item[1]) for item in quarterly_data.get(key, {}).get("data", []) if item[1] != '無']
+
+    #季度數據
+    epst4q = extract_data_quarterly("EPST4Q")
+    epst4q_interpolated , epst4q_interpolated_last = interpolate_quarterly_to_monthly(epst4q, NUM_DATA_POINTS)
 
     PB = extract_data("PB")
     revenue_per_share = extract_data("RevenuePerShare")
@@ -188,6 +247,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
         valid_data = [x for x in lst if x is not None]
         return valid_data[-valid_length:]
 
+    epst4q = get_last_valid_data(epst4q_interpolated_last)
     PB = get_last_valid_data(PB)
     revenue_per_share = get_last_valid_data(revenue_per_share)
     revenue_per_share_yoy = get_last_valid_data(revenue_per_share_yoy)
@@ -198,6 +258,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     total_shareholders_count = get_last_valid_data(total_shareholders_count)
 
     # 填充不足的部分
+    epst4q = pad_list(epst4q, valid_length)
     PB = pad_list(PB, valid_length)
     revenue_per_share = pad_list(revenue_per_share, valid_length)
     revenue_per_share_yoy = pad_list(revenue_per_share_yoy, valid_length)
@@ -214,7 +275,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
             revenue_t3m_avg,
             revenue_t3m_yoy,
             majority_shareholders_share_ratio,
-            total_shareholders_count,
+            total_shareholders_count,epst4q,
             latest_close_price)
 
 def normalize_and_standardize_data(X):
@@ -275,7 +336,6 @@ def normalize_and_standardize_data_weight(X, weights=None):
 
     return X_normalized, min_max_scaler, standard_scaler
 
-
 def linear_interpolation(data, target_length):
     """
     对数据进行线性插值，确保数据长度为 target_length。
@@ -301,7 +361,6 @@ def linear_interpolation(data, target_length):
     df_interpolated = df.reindex(target_indices).interpolate(method='linear').bfill().ffill()
     
     return df_interpolated.values
-
 
 def plot_dtw_error(X, y, dtw_distance, dtw_path):
     """
@@ -359,6 +418,39 @@ def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch
 
     return encoder
 
+def spline_interpolation(data, factor=10, plot=False):
+    """对数据进行样条插值"""
+    n = len(data)
+    x = np.arange(n)
+    cs = CubicSpline(x, data)
 
+    # 新的插值点
+    x_new = np.linspace(0, n - 1, factor * n - (factor - 1))
+    interpolated_data = cs(x_new)
 
+    if plot:
+        # 绘制插值前后的数据
+        plt.figure(figsize=(14, 8))
+        plt.subplot(3, 1, 1)
+        plt.plot(data, 'o-', label='Original Revenue YOY', color='blue')
+        plt.plot(interpolated_data, 'x--', label='Interpolated Revenue YOY (3x)', color='red')
+        plt.title('Revenue YOY: Original vs Interpolated')
+        plt.legend()
+
+        plt.subplot(3, 1, 2)
+        plt.plot(data, 'o-', label='Original Price', color='blue')
+        plt.plot(interpolated_data, 'x--', label='Interpolated Price (3x)', color='red')
+        plt.title('Price: Original vs Interpolated')
+        plt.legend()
+
+        plt.subplot(3, 1, 3)
+        plt.plot(data, 'o-', label='Original Revenue Per Share', color='blue')
+        plt.plot(interpolated_data, 'x--', label='Interpolated Revenue Per Share (3x)', color='red')
+        plt.title('Revenue Per Share: Original vs Interpolated')
+        plt.legend()
+
+        plt.tight_layout()
+        plt.show()
+
+    return interpolated_data
 

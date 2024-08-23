@@ -25,19 +25,23 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     # 解包有效数据
     valid_revenue, valid_price, valid_rev_per_share = zip(*valid_data)
 
-    # 准备时间序列数据
-    price_series = np.array(valid_price).reshape(-1, 1)
-    revenue_series = np.array(valid_revenue).reshape(-1, 1)
-    rev_per_share_series = np.array(valid_rev_per_share).reshape(-1, 1)
+    # 对数据进行样条插值
+    interpolated_revenue = spline_interpolation(np.array(valid_revenue))
+    interpolated_price = spline_interpolation(np.array(valid_price))
+    interpolated_rev_per_share = spline_interpolation(np.array(valid_rev_per_share))
 
-    # 设置权重：对负的营收赋予更高的负权重
+    # 准备时间序列数据
+    price_series = interpolated_price.reshape(-1, 1)
+    revenue_series = interpolated_revenue.reshape(-1, 1)
+    rev_per_share_series = interpolated_rev_per_share.reshape(-1, 1)
+
+    # 设置权重：对负的营收可赋予更高的负权重
     revenue_weights = np.where(revenue_series < 0, 2.0, 1.0)
 
     # 正规化与归一化数据，加入权重参数
     revenue_normalized, _, scaler_X1 = normalize_and_standardize_data_weight(revenue_series, weights=revenue_weights)
     rev_per_share_normalized, _, scaler_X2 = normalize_and_standardize_data(rev_per_share_series)
     price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
-
 
     # 分别使用 fastdtw 对齐时间序列
     _, revenue_path = fastdtw(revenue_normalized, price_normalized, dist=euclidean)
@@ -54,7 +58,8 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     aligned_rev_per_share_interpolated = linear_interpolation(aligned_rev_per_share, target_length)
 
     # 合并对齐后的数据作为模型输入
-    X_combined = np.hstack((aligned_revenue_interpolated.reshape(-1, 1), aligned_rev_per_share_interpolated.reshape(-1, 1)))
+    X_combined = np.hstack(
+        (aligned_revenue_interpolated.reshape(-1, 1), aligned_rev_per_share_interpolated.reshape(-1, 1)))
 
     # 训练集和测试集划分
     X_train, X_test, y_train, y_test = train_test_split(X_combined, aligned_y, test_size=0.2, random_state=42)
