@@ -454,3 +454,10 @@ def spline_interpolation(data, factor=10, plot=False):
 
     return interpolated_data
 
+def create_lag_features(data, lags=1):
+    """创建滞后特征"""
+    df = pd.DataFrame(data)
+    for lag in range(1, lags + 1):
+        df[f'lag_{lag}'] = df[0].shift(lag)
+    df = df.dropna()
+    return df.values

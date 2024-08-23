@@ -56,7 +56,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     sign_series = interpolated_sign.reshape(-1, 1)
 
     # 设置权重：对负的营收可赋予更高的负权重
-    revenue_weights = np.where(revenue_series < 0, 1.0, 1.0)
+    revenue_weights = np.where(revenue_series < 0, 2.0, 1.0)
 
     # 正规化与归一化数据，加入权重参数
     revenue_normalized, _, scaler_X1 = normalize_and_standardize_data_weight(revenue_series, weights=revenue_weights)
