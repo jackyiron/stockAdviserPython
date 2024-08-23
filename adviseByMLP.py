@@ -42,27 +42,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     rev_per_share_normalized, _, scaler_X2 = normalize_and_standardize_data(rev_per_share_series)
     price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
 
-
-    # 分别使用 fastdtw 对齐时间序列
-    _, revenue_path = fastdtw(revenue_normalized, price_normalized, dist=euclidean)
-    _, rev_per_share_path = fastdtw(rev_per_share_normalized, price_normalized, dist=euclidean)
-
-    # 根据 DTW 路径对齐数据
-    aligned_revenue = np.array([revenue_normalized[i] for i, _ in revenue_path])
-    aligned_rev_per_share = np.array([rev_per_share_normalized[i] for i, _ in rev_per_share_path])
-    aligned_y = np.array([price_normalized[j] for _, j in revenue_path]).flatten()
-
-    # 插值对齐后的数据
-    target_length = len(aligned_y)
-    aligned_revenue_interpolated = linear_interpolation(aligned_revenue, target_length)
-    aligned_rev_per_share_interpolated = linear_interpolation(aligned_rev_per_share, target_length)
-
     # 合并对齐后的数据作为模型输入
-    X_combined = np.hstack((aligned_revenue_interpolated.reshape(-1, 1), aligned_rev_per_share_interpolated.reshape(-1, 1)))
+    X_combined = np.hstack((
+        revenue_normalized,
+        rev_per_share_normalized
+    ))
 
     # 训练集和测试集划分
-    X_train, X_test, y_train, y_test = train_test_split(X_combined, aligned_y, test_size=0.2, random_state=42)
-
+    X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2, random_state=42)
 
     # 定义和训练神经网络回归模型
     mlp = MLPRegressor(hidden_layer_sizes=(100, 50), activation='relu', solver='adam', alpha=0.0001, max_iter=3000,
@@ -88,7 +75,6 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     price_difference = estimated_price - latest_close_price
     price_diff_percentage = price_difference / latest_close_price * 100
 
-
     if abs(price_diff_percentage) > 60:
         color = 'darkred' if latest_close_price > estimated_price else 'lightseagreen'
         action = '强力卖出' if latest_close_price > estimated_price else '强力买入'
@@ -103,10 +89,8 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
             f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
             f'MSE: {final_mse:.2f} </span><br>')
 
-    # 调用绘图函数
-    # plot_dtw_error(aligned_X, aligned_y, distance, path)
-
     return result_message
+
 
 def main():
     NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
