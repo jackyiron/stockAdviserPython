@@ -28,7 +28,6 @@ sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
 # 常量
 URL_TEMPLATE = "https://statementdog.com/api/v2/fundamentals/{stock_code}/2014/2024/cf?qbu=true&qf=analysis"
 
-FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文件數據
 
 # 定義請求頭
 HEADERS = {
@@ -137,7 +136,7 @@ def pad_data(data, length):
         return data + [None] * (length - len(data))
     return data[:length]
 
-def fetch_stock_data(NUM_DATA_POINTS , stock_code):
+def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code):
     """从本地文件获取股票数据"""
     file_path = f'stockData/{stock_code}.json'
 

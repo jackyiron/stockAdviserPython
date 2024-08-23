@@ -100,6 +100,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
 def main():
     NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
+    FETCH_LATEST_CLOSE_PRICE_ONLINE = True  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
     output_file_name = 'ridge.html'  # 输出文件名
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
@@ -122,7 +123,7 @@ def main():
         try:
             (revenue_per_share_yoy, price_data, revenue_per_share, PB,
              revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
-             total_shareholders_count, latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, stock_code)
+             total_shareholders_count, latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
 
             result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
                                    revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
