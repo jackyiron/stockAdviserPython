@@ -1,0 +1,17 @@
+# 定义请求头
+HEADERS = {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6",
+    "cache-control": "no-cache",
+    "cookie": "statementdog_device_id=aVNiSlJJNXpJL0prMk1ybitSenFyZVY1MkdROFh0SzVIeHMzSGc0MmF4VmM1V3d1dVJya2h0c1dUQWUrOXdOci0tTUN3aXlSTGhsQ0ptVHJrUmRTUlRTUT09--cb40a658096ab1ae069e0e788ee96fad6c769d54; easy_ab=88e3e53f-9979-4305-8ee6-01dce716965f; _ga=GA1.1.1382045611.1724032914; upgrade_browser=1; g_state={\"i_l\":0}; g_csrf_token=37de11532f4b258c; AMP_0ab77a441f=JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI1NmIwZWMyYS1kYTJmLTRkMjgtYmY3My0xZDZkN2ZiNjNlZjclMjIlMkMlMjJ1c2VySWQlMjIlM0EyMjA2OCUyQyUyMnNlc3Npb25JZCUyMiUzQTE3MjQwMzgyNTg1ODQlMkMlMjJvcHRPdXQlMjIlM0FmYWxzZSUyQyUyMmxhc3RFdmVudFRpbWUlMjIlM0ExNzI0MDM4MjgzNzQ2JTJDJTIybGFzdEV2ZW50SWQlMjIlM0E2MSUyQyUyMnBhZ2VDb3VudGVyJTIyJTNBMCU3RA==; _ga_K9Y9Y589MM=GS1.1.1724038235.2.1.1724038302.60.0.0; search_stock_referer=https%3A%2F%2Fstatementdog.com%2Fportfolios; _statementdog_session_v2=vtMAdvQujtMr%2BsggeSeES5%2BEwDxq8RDQy%2F4qBSPd%2Fx%2FCtC6vEuYzA0LDupGh2EC7qzlojtrdZp8I2ZxG%2BIRqJNaqZxCdMfbLRngFaE2uZ9NchVpO2Sdm2wabpfZFYn3rlo5q%2FJvRSqmt%2BXRv9vJ2Ov7nRBDlykVSpgolWMud491J8G8T3M3n4R5BgPKiZvNoeYO5Cr1TsXnVU9oA9hZ8a8vK4vfSOvdfSzZ2oB%2BxsASFiu0CLvFUkCWBpcYmhjXYCmYK11kjZiuTDIiBGBGuh%2FYYxTjviOMZWLzrVtAPQUPB%2Bx%2BV4jScRVx0RcCeUz44iWSYHB6oGN%2B41cm57hcLV%2FvOxYtqU81KZuq9sPQ0P9yo9DM5%2Fr%2BQyOPfi9hvCdNMQfW5MN4DjYYEV4riosl%2BqSY4sD%2F2A5gIo3%2BwLTXS8JGeQhGVkWHnjjXVype8uTltaUVMPB9wXPAizte8KGwcSHLwl2FaMCOBWxfE1FDQE7%2Fel%2BbaSX9uHJbx%2BMdEW3L71QWHVxyk0sMwgtIxfeRPYwJI77Cmj8OooJL4okUH9DYPuBp3LzC8qrYmla0%2Fz3gIOss%3D--UM7YcRCc%2F1IlStw2--ZEGRU3Mm0aZXH63JnVzfYQ%3D%3D",
+    "pragma": "no-cache",
+    "referer": "https://statementdog.com/analysis/2002/monthly-revenue-growth-rate",
+    "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    "x-csrf-token": "m5_fWNYl2lS5m4iIczHtKCm2wHDZI9S9mTlVt1l3aTjb3mg9DK9yfbtypwyRp60MEKT4KWzyuSq1r__ShI-Ddw"
+}

@@ -1,0 +1,333 @@
+import requests
+from scipy.interpolate import interp1d
+import numpy as np
+import json
+import os
+import sys
+from bs4 import BeautifulSoup
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import matplotlib.pyplot as plt
+from fastdtw import fastdtw
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+from scipy.spatial.distance import euclidean
+from fastdtw import fastdtw
+import numpy as np
+from sklearn.impute import SimpleImputer
+from sklearn.model_selection import GridSearchCV
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+
+os.environ['PYTHONUNBUFFERED'] = '1'
+sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
+
+# 常量
+URL_TEMPLATE = "https://statementdog.com/api/v2/fundamentals/{stock_code}/2014/2024/cf?qbu=true&qf=analysis"
+
+FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文件數據
+
+# 定義請求頭
+HEADERS = {
+    "accept": "application/json, text/plain, */*",
+    "accept-language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6",
+    "cache-control": "no-cache",
+    "cookie": "statementdog_device_id=aVNiSlJJNXpJL0prMk1ybitSenFyZVY1MkdROFh0SzVIeHMzSGc0MmF4VmM1V3d1dVJya2h0c1dUQWUrOXdOci0tTUN3aXlSTGhsQ0ptVHJrUmRTUlRTUT09--cb40a658096ab1ae069e0e788ee96fad6c769d54; easy_ab=88e3e53f-9979-4305-8ee6-01dce716965f; _ga=GA1.1.1382045611.1724032914; upgrade_browser=1; g_state={\"i_l\":0}; g_csrf_token=37de11532f4b258c; AMP_0ab77a441f=JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI1NmIwZWMyYS1kYTJmLTRkMjgtYmY3My0xZDZkN2ZiNjNlZjclMjIlMkMlMjJ1c2VySWQlMjIlM0EyMjA2OCUyQyUyMnNlc3Npb25JZCUyMiUzQTE3MjQwMzgyNTg1ODQlMkMlMjJvcHRPdXQlMjIlM0FmYWxzZSUyQyUyMmxhc3RFdmVudFRpbWUlMjIlM0ExNzI0MDM4MjgzNzQ2JTJDJTIybGFzdEV2ZW50SWQlMjIlM0E2MSUyQyUyMnBhZ2VDb3VudGVyJTIyJTNBMCU3RA==; _ga_K9Y9Y589MM=GS1.1.1724038235.2.1.1724038302.60.0.0; search_stock_referer=https%3A%2F%2Fstatementdog.com%2Fportfolios; _statementdog_session_v2=vtMAdvQujtMr%2BsggeSeES5%2BEwDxq8RDQy%2F4qBSPd%2Fx%2FCtC6vEuYzA0LDupGh2EC7qzlojtrdZp8I2ZxG%2BIRqJNaqZxCdMfbLRngFaE2uZ9NchVpO2Sdm2wabpfZFYn3rlo5q%2FJvRSqmt%2BXRv9vJ2Ov7nRBDlykVSpgolWMud491J8G8T3M3n4R5BgPKiZvNoeYO5Cr1TsXnVU9oA9hZ8a8vK4vfSOvdfSzZ2oB%2BxsASFiu0CLvFUkCWBpcYmhjXYCmYK11kjZiuTDIiBGBGuh%2FYYxTjviOMZWLzrVtAPQUPB%2Bx%2BV4jScRVx0RcCeUz44iWSYHB6oGN%2B41cm57hcLV%2FvOxYtqU81KZuq9sPQ0P9yo9DM5%2Fr%2BQyOPfi9hvCdNMQfW5MN4DjYYEV4riosl%2BqSY4sD%2F2A5gIo3%2BwLTXS8JGeQhGVkWHnjjXVype8uTltaUVMPB9wXPAizte8KGwcSHLwl2FaMCOBWxfE1FDQE7%2Fel%2BbaSX9uHJbx%2BMdEW3L71QWHVxyk0sMwgtIxfeRPYwJI77Cmj8OooJL4okUH9DYPuBp3LzC8qrYmla0%2Fz3gIOss%3D--UM7YcRCc%2F1IlStw2--ZEGRU3Mm0aZXH63JnVzfYQ%3D%3D",
+    "pragma": "no-cache",
+    "referer": "https://statementdog.com/analysis/2002/monthly-revenue-growth-rate",
+    "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    "x-csrf-token": "m5_fWNYl2lS5m4iIczHtKCm2wHDZI9S9mTlVt1l3aTjb3mg9DK9yfbtypwyRp60MEKT4KWzyuSq1r__ShI-Ddw"
+}
+
+def getLatestPrice():
+    """從網頁獲取最新的股價"""
+    headers = {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6',
+        'cache-control': 'no-cache',
+        'cookie': 'fastivalName_Mall_20240402=closeday_fastivalName_Mall_20240402; bottomADName_20240402=closeday_bottomADName_20240402; _ga=GA1.2.1346814139.1722849008; _gcl_au=1.1.1681944876.1722849008; ASP.NET_SessionId=f4y0yefm0uhzdi550rgceb0k; _gid=GA1.2.929478691.1724133370; fastivalName_Mall_20240402=closeday_fastivalName_Mall_20240402; bottomADName_20240402=closeday_bottomADName_20240402; __gsas=ID=31ddb8e553c103a7:T=1724133412:RT=1724133412:S=ALNI_MYByiOJC8zDAXukb3TM5gPJMU1pXg; _ga_S0YRRCXLNT=GS1.2.1724145464.3.1.1724145535.60.0.0',
+        'pragma': 'no-cache',
+        'priority': 'u=0, i',
+        'referer': 'https://histock.tw/stock/rank.aspx?m=0&d=1&p=all',
+        'sec-ch-ua': '"Not)A;Brand";v="99", "Google Chrome";v="127", "Chromium";v="127"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
+    }
+    url = 'https://histock.tw/stock/rank.aspx?m=0&d=0&p=all'
+    response = requests.get(url, headers=headers)
+    html = response.text
+
+    soup = BeautifulSoup(html, 'html.parser')
+
+    stocks = []
+    for row in soup.select('tr'):
+        stock_link = row.select_one('a[href^="/stock/"]')
+        if stock_link:
+            stock_code = stock_link['href'].split('/')[2]
+            stock_name = stock_link.text.strip()
+
+            price_span = row.select_one('span[id^="CPHB1_gv_lbDeal_"]')
+            if price_span:
+                price_text = price_span.text.strip()
+                try:
+                    price = float(price_text.replace(',', ''))
+                except ValueError:
+                    continue
+
+                stocks.append({
+                    'stock_name': stock_name,
+                    'stock_code': stock_code,
+                    'price': price
+                })
+
+    output_dir = 'stockData'
+    os.makedirs(output_dir, exist_ok=True)
+
+    output_file = os.path.join(output_dir, 'latest_price.json')
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(stocks, f, ensure_ascii=False, indent=4)
+
+    print(f"數據已保存到 {output_file}")
+
+def parse_float(value):
+    """將值解析為浮點數"""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+def pad_list(lst, length):
+    """Pad the list to the specified length with None values if it is shorter, or truncate if it is longer."""
+    if len(lst) < length:
+        return lst + [None] * (length - len(lst))
+    return lst[:length]
+
+def interpolate_quarterly_to_monthly(quarterly_data, num_months):
+    """将季度数据插值到每月数据"""
+    if len(quarterly_data) < 2:
+        return [None] * num_months
+
+    # 创建季度时间轴
+    quarterly_indices = np.arange(len(quarterly_data)) * 3
+    # 创建对应的月度时间轴
+    monthly_indices = np.arange(num_months)
+
+    # 插值函数
+    interp_func = interp1d(quarterly_indices, quarterly_data, kind='linear', fill_value='extrapolate')
+    return interp_func(monthly_indices)
+
+def pad_data(data, length):
+    """将数据填充到指定长度"""
+    if len(data) < length:
+        return data + [None] * (length - len(data))
+    return data[:length]
+
+def fetch_stock_data(NUM_DATA_POINTS , stock_code):
+    """从本地文件获取股票数据"""
+    file_path = f'stockData/{stock_code}.json'
+
+    if not os.path.exists(file_path):
+        raise ValueError(f"文件 {file_path} 不存在。请确保文件路径和股票代码正确。")
+
+    with open(file_path, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+
+    monthly_data = data.get("monthly", {})
+    quarterly_data = data.get("quarterly", {})
+
+    # 读取原始数据
+    def extract_data(key):
+        return [parse_float(item[1]) for item in monthly_data.get(key, {}).get("data", []) if item[1] != '無']
+
+    PB = extract_data("PB")
+    revenue_per_share = extract_data("RevenuePerShare")
+    revenue_per_share_yoy = extract_data("RevenuePerShareYOY")
+    price_data = extract_data("Price")
+
+    revenue_t3m_avg = extract_data("RevenueT3MAvg")
+    revenue_t3m_yoy = extract_data("RevenueT3MYOY")
+    majority_shareholders_share_ratio = extract_data("MajorityShareholdersShareRatio")
+    total_shareholders_count = extract_data("TotalShareholdersCount")
+
+    # 获取最新股价
+    price_file_path = os.path.join('stockData', 'latest_price.json')
+    with open(price_file_path, 'r', encoding='utf-8') as file:
+        latest_price_data = json.load(file)
+
+    latest_close_price = next(
+        (item['price'] for item in latest_price_data if item['stock_code'] == stock_code),
+        None
+    )
+
+    if latest_close_price is None:
+        raise ValueError(f"Stock code {stock_code} not found in latest_price.json")
+
+    # 计算有效数据长度
+    def calculate_valid_length(data_list):
+        return len([x for x in data_list if x is not None])
+
+    valid_length = min(NUM_DATA_POINTS, calculate_valid_length(price_data))
+
+    # print("本次有效數據: " + str(valid_length))
+    # # 从最后开始提取有效长度的数据
+    def get_last_valid_data(lst):
+        valid_data = [x for x in lst if x is not None]
+        return valid_data[-valid_length:]
+
+    PB = get_last_valid_data(PB)
+    revenue_per_share = get_last_valid_data(revenue_per_share)
+    revenue_per_share_yoy = get_last_valid_data(revenue_per_share_yoy)
+    price_data = get_last_valid_data(price_data)
+    revenue_t3m_avg = get_last_valid_data(revenue_t3m_avg)
+    revenue_t3m_yoy = get_last_valid_data(revenue_t3m_yoy)
+    majority_shareholders_share_ratio = get_last_valid_data(majority_shareholders_share_ratio)
+    total_shareholders_count = get_last_valid_data(total_shareholders_count)
+
+    # 填充不足的部分
+    PB = pad_list(PB, valid_length)
+    revenue_per_share = pad_list(revenue_per_share, valid_length)
+    revenue_per_share_yoy = pad_list(revenue_per_share_yoy, valid_length)
+    price_data = pad_list(price_data, valid_length)
+    revenue_t3m_avg = pad_list(revenue_t3m_avg, valid_length)
+    revenue_t3m_yoy = pad_list(revenue_t3m_yoy, valid_length)
+    majority_shareholders_share_ratio = pad_list(majority_shareholders_share_ratio, valid_length)
+    total_shareholders_count = pad_list(total_shareholders_count, valid_length)
+
+    return (revenue_per_share_yoy,
+            price_data,
+            revenue_per_share,
+            PB,
+            revenue_t3m_avg,
+            revenue_t3m_yoy,
+            majority_shareholders_share_ratio,
+            total_shareholders_count,
+            latest_close_price)
+
+def normalize_and_standardize_data(X):
+    """
+    对输入数据X进行极端值处理、标准化和归一化。
+    """
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+
+    # 处理极端值：向量化处理
+    # median = np.median(X, axis=0)
+    # iqr = np.percentile(X, 90, axis=0) - np.percentile(X, 10, axis=0)
+    #
+    # # 设置上下限
+    # lower_bound = median - 3 * iqr
+    # upper_bound = median + 3 * iqr
+
+    # # 向量化处理极端值
+    # X_clipped = np.clip(X, lower_bound, upper_bound)
+
+    # 标准化
+    standard_scaler = StandardScaler()
+    X_standardized = standard_scaler.fit_transform(X)
+
+    # 归一化到 [0, 1] 范围
+    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+    X_normalized = min_max_scaler.fit_transform(X_standardized)
+
+    return X_normalized, min_max_scaler, standard_scaler
+
+def normalize_and_standardize_data_weight(X, weights=None):
+    """
+    对输入数据X进行标准化和归一化，并根据提供的权重进行调整。
+    
+    Parameters:
+    - X: 输入数据 (numpy array)
+    - weights: 特征权重 (numpy array), 如果提供，将对每个特征应用相应的权重。
+    
+    Returns:
+    - X_normalized: 归一化后的数据
+    - min_max_scaler: 归一化的Scaler对象
+    - standard_scaler: 标准化的Scaler对象
+    """
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+
+    # 如果提供了权重，对X进行缩放
+    if weights is not None:
+        X = X * weights
+
+    # 标准化
+    standard_scaler = StandardScaler()
+    X_standardized = standard_scaler.fit_transform(X)
+
+    # 归一化到 [-1, 1] 范围
+    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+    X_normalized = min_max_scaler.fit_transform(X_standardized)
+
+    return X_normalized, min_max_scaler, standard_scaler
+
+
+def plot_dtw_error(X, y, dtw_distance, dtw_path):
+    """
+    绘制 DTW 路径和误差。
+    """
+    plt.figure(figsize=(12, 6))
+
+    # 绘制对齐后的时间序列
+    plt.subplot(2, 1, 1)
+    plt.plot(np.arange(len(X)), X, label='Standardized Data')
+    plt.plot(np.arange(len(y)), y, label='Standardized Price Data', linestyle='--')
+    plt.title('Aligned Time Series')
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.legend()
+
+    # 绘制 DTW 路径
+    plt.subplot(2, 1, 2)
+    plt.plot([p[0] for p in dtw_path], [p[1] for p in dtw_path], marker='o', linestyle='-', color='r')
+    plt.title('DTW Path')
+    plt.xlabel('Index in X')
+    plt.ylabel('Index in Y')
+
+    plt.suptitle(f'DTW Distance: {dtw_distance:.2f}')
+    plt.show()
+
+def build_autoencoder(input_dim, encoding_dim):
+    """构建自动编码器模型"""
+    # 编码器
+    input_layer = Input(shape=(input_dim,))
+    encoded = Dense(encoding_dim, activation='relu')(input_layer)
+
+    # 解码器
+    decoded = Dense(input_dim, activation='sigmoid')(encoded)
+
+    # 自动编码器模型
+    autoencoder = Model(inputs=input_layer, outputs=decoded)
+
+    # 编码器模型
+    encoder = Model(inputs=input_layer, outputs=encoded)
+
+    return autoencoder, encoder
+
+def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch_size=256):
+    """训练自动编码器并返回编码器"""
+    # 构建自动编码器
+    autoencoder, encoder = build_autoencoder(input_dim, encoding_dim)
+
+    # 编译模型
+    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+
+    # 训练自动编码器
+    autoencoder.fit(X_train, X_train, epochs=epochs, batch_size=batch_size, shuffle=True,
+                    validation_data=(X_test, X_test), verbose=0)
+
+    return encoder
