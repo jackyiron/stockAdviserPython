@@ -19,8 +19,6 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import GridSearchCV
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
-from tensorflow.keras.layers import Input, Dense
-from tensorflow.keras.models import Model
 
 os.environ['PYTHONUNBUFFERED'] = '1'
 sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
@@ -246,6 +244,37 @@ def normalize_and_standardize_data(X):
     X_normalized = min_max_scaler.fit_transform(X_standardized)
 
     return X_normalized, min_max_scaler, standard_scaler
+
+def normalize_and_standardize_data_weight(X, weights=None):
+    """
+    对输入数据X进行标准化和归一化，并根据提供的权重进行调整。
+    
+    Parameters:
+    - X: 输入数据 (numpy array)
+    - weights: 特征权重 (numpy array), 如果提供，将对每个特征应用相应的权重。
+    
+    Returns:
+    - X_normalized: 归一化后的数据
+    - min_max_scaler: 归一化的Scaler对象
+    - standard_scaler: 标准化的Scaler对象
+    """
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+
+    # 如果提供了权重，对X进行缩放
+    if weights is not None:
+        X = X * weights
+
+    # 标准化
+    standard_scaler = StandardScaler()
+    X_standardized = standard_scaler.fit_transform(X)
+
+    # 归一化到 [-1, 1] 范围
+    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+    X_normalized = min_max_scaler.fit_transform(X_standardized)
+
+    return X_normalized, min_max_scaler, standard_scaler
+
 
 def plot_dtw_error(X, y, dtw_distance, dtw_path):
     """

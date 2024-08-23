@@ -26,9 +26,11 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     price_series = np.array(valid_price).reshape(-1, 1)
     revenue_series = np.array(valid_revenue).reshape(-1, 1)
 
+    # 设置权重：对负的营收赋予更高的负权重
+    revenue_weights = np.where(revenue_series < 0, 3.0, 1.0)
 
-    # 正规化与归一化数据
-    revenue_normalized, _, scaler_X = normalize_and_standardize_data(revenue_series)
+   # 正规化与归一化数据，加入权重参数
+    revenue_normalized, _, scaler_X = normalize_and_standardize_data_weight(revenue_series, weights=revenue_weights)
     price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
 
     # 使用 fastdtw 对齐时间序列
