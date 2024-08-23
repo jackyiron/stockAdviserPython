@@ -358,3 +358,7 @@ def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch
                     validation_data=(X_test, X_test), verbose=0)
 
     return encoder
+
+
+
+

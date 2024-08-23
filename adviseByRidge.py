@@ -63,10 +63,10 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     grid_search.fit(X_train, y_train)
 
     # 获取最佳模型
-    best_ridge = grid_search.best_estimator_
+    model = grid_search.best_estimator_
 
     # 预测和评估
-    y_pred_final = best_ridge.predict(X_test)
+    y_pred_final = model.predict(X_test)
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
@@ -75,7 +75,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
         scaler_X2.transform(current_feature[:, 1].reshape(-1, 1))
     ))
-    estimated_price_scaled = best_ridge.predict(current_feature_scaled)
+    estimated_price_scaled = model.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
 
     # 计算价格差异
@@ -100,7 +100,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
 def main():
     NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
-    FETCH_LATEST_CLOSE_PRICE_ONLINE = True  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
+    FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
     output_file_name = 'ridge.html'  # 输出文件名
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
