@@ -1,5 +1,6 @@
 import requests
 from scipy.interpolate import interp1d
+import pandas as pd
 import numpy as np
 import json
 import os
@@ -274,6 +275,33 @@ def normalize_and_standardize_data_weight(X, weights=None):
     X_normalized = min_max_scaler.fit_transform(X_standardized)
 
     return X_normalized, min_max_scaler, standard_scaler
+
+
+def linear_interpolation(data, target_length):
+    """
+    对数据进行线性插值，确保数据长度为 target_length。
+    
+    参数：
+    data -- 输入的数据数组，形状为 (原始长度, 特征维度)
+    target_length -- 目标长度，即插值后的数据长度
+    
+    返回：
+    插值后的数据数组，形状为 (目标长度, 特征维度)
+    """
+    original_length = data.shape[0]
+    
+    if original_length >= target_length:
+        return data[:target_length]
+    
+    original_indices = np.arange(original_length)
+    target_indices = np.linspace(0, original_length - 1, target_length)
+    
+    df = pd.DataFrame(data, columns=['value'])
+    df.index = original_indices
+    
+    df_interpolated = df.reindex(target_indices).interpolate(method='linear').bfill().ffill()
+    
+    return df_interpolated.values
 
 
 def plot_dtw_error(X, y, dtw_distance, dtw_path):
