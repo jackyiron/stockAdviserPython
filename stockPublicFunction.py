@@ -248,7 +248,6 @@ def pad_list(lst, length):
         return lst + [None] * (length - len(lst))
     return lst[:length]
 
-
 def interpolate_quarterly_to_monthly(quarterly_data, num_last_values):
     """将季度数据插值到每月数据，并从插值结果中提取最后特定数量的数据点"""
     if len(quarterly_data) < 2:
@@ -273,13 +272,11 @@ def interpolate_quarterly_to_monthly(quarterly_data, num_last_values):
 
     return monthly_data, last_values
 
-
 def pad_data(data, length):
     """将数据填充到指定长度"""
     if len(data) < length:
         return data + [None] * (length - len(data))
     return data[:length]
-
 
 def normalize_and_standardize_data(X):
     """
