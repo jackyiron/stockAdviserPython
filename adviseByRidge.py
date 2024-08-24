@@ -9,7 +9,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
                   epst4q, latest_close_price):
     """分析股票数据"""
     # 提取 revenue_t3m_yoy 的符号信息
-    revenue_t3m_yoy_sign = extract_sign(revenue_t3m_yoy)
+    revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
 
     # 创建有效数据列表
     valid_data = [

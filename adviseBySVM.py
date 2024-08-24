@@ -23,7 +23,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     # 提取 revenue_t3m_yoy 和 epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
     # data = [10, 20, 20, 30, 30, 30, -10, -10]
-    # print(calculate_sign_changes(data))
+    # print(calculate_sign_changes(revenue_t3m_yoy_sign))
 
     # 创建有效数据列表
     valid_data = [
@@ -44,10 +44,11 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     interpolated_revenue = spline_interpolation(np.array(valid_revenue))
     interpolated_price = spline_interpolation(np.array(valid_price))
     interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
+    interpolated_sign = spline_interpolation(np.array(valid_sign))
 
     # 使用 linear_interpolate_sign 插值符号数据
-    interpolated_sign = linear_interpolate_sign(np.array(valid_sign), len(interpolated_price))
-
+    # interpolated_sign = linear_interpolate_sign(np.array(valid_sign), len(interpolated_price))
+    # print(interpolated_sign)
     # 准备时间序列数据
     price_series = interpolated_price.reshape(-1, 1)
     revenue_series = interpolated_revenue.reshape(-1, 1)
