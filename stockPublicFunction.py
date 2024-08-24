@@ -47,6 +47,97 @@ HEADERS = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     "x-csrf-token": "m5_fWNYl2lS5m4iIczHtKCm2wHDZI9S9mTlVt1l3aTjb3mg9DK9yfbtypwyRp60MEKT4KWzyuSq1r__ShI-Ddw"
 }
+def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code):
+    """从本地文件获取股票数据"""
+    file_path = f'stockData/{stock_code}.json'
+
+    if not os.path.exists(file_path):
+        raise ValueError(f"文件 {file_path} 不存在。请确保文件路径和股票代码正确。")
+
+    with open(file_path, 'r', encoding='utf-8') as file:
+        data = json.load(file)
+
+    monthly_data = data.get("monthly", {})
+    quarterly_data = data.get("quarterly", {})
+
+    # 读取原始数据
+    def extract_data(key):
+        return [parse_float(item[1]) for item in monthly_data.get(key, {}).get("data", []) if item[1] != '無']
+    def extract_data_quarterly(key):
+        return [parse_float(item[1]) for item in quarterly_data.get(key, {}).get("data", []) if item[1] != '無']
+
+    #季度數據
+    epst4q = extract_data_quarterly("EPST4Q")
+    # print(epst4q)
+    epst4q_interpolated , epst4q_interpolated_last = interpolate_quarterly_to_monthly(epst4q, NUM_DATA_POINTS)
+    #print(epst4q_interpolated_last)
+    #exit()
+    PB = extract_data("PB")
+    revenue_per_share = extract_data("RevenuePerShare")
+    revenue_per_share_yoy = extract_data("RevenuePerShareYOY")
+    price_data = extract_data("Price")
+
+    revenue_t3m_avg = extract_data("RevenueT3MAvg")
+    revenue_t3m_yoy = extract_data("RevenueT3MYOY")
+    majority_shareholders_share_ratio = extract_data("MajorityShareholdersShareRatio")
+    total_shareholders_count = extract_data("TotalShareholdersCount")
+
+    # 获取最新股价
+
+    price_file_path = os.path.join('stockData', 'latest_price.json')
+    with open(price_file_path, 'r', encoding='utf-8') as file:
+        latest_price_data = json.load(file)
+
+    latest_close_price = next(
+        (item['price'] for item in latest_price_data if item['stock_code'] == stock_code),
+        None
+    )
+
+    if latest_close_price is None:
+        raise ValueError(f"Stock code {stock_code} not found in latest_price.json")
+
+    # 计算有效数据长度
+    def calculate_valid_length(data_list):
+        return len([x for x in data_list if x is not None])
+
+    valid_length = min(NUM_DATA_POINTS, calculate_valid_length(price_data))
+
+    # print("本次有效數據: " + str(valid_length))
+    # # 从最后开始提取有效长度的数据
+    def get_last_valid_data(lst):
+        valid_data = [x for x in lst if x is not None]
+        return valid_data[-valid_length:]
+
+    epst4q = get_last_valid_data(epst4q_interpolated_last)
+    PB = get_last_valid_data(PB)
+    revenue_per_share = get_last_valid_data(revenue_per_share)
+    revenue_per_share_yoy = get_last_valid_data(revenue_per_share_yoy)
+    price_data = get_last_valid_data(price_data)
+    revenue_t3m_avg = get_last_valid_data(revenue_t3m_avg)
+    revenue_t3m_yoy = get_last_valid_data(revenue_t3m_yoy)
+    majority_shareholders_share_ratio = get_last_valid_data(majority_shareholders_share_ratio)
+    total_shareholders_count = get_last_valid_data(total_shareholders_count)
+
+    # 填充不足的部分
+    epst4q = pad_list(epst4q, valid_length)
+    PB = pad_list(PB, valid_length)
+    revenue_per_share = pad_list(revenue_per_share, valid_length)
+    revenue_per_share_yoy = pad_list(revenue_per_share_yoy, valid_length)
+    price_data = pad_list(price_data, valid_length)
+    revenue_t3m_avg = pad_list(revenue_t3m_avg, valid_length)
+    revenue_t3m_yoy = pad_list(revenue_t3m_yoy, valid_length)
+    majority_shareholders_share_ratio = pad_list(majority_shareholders_share_ratio, valid_length)
+    total_shareholders_count = pad_list(total_shareholders_count, valid_length)
+
+    return (revenue_per_share_yoy,
+            price_data,
+            revenue_per_share,
+            PB,
+            revenue_t3m_avg,
+            revenue_t3m_yoy,
+            majority_shareholders_share_ratio,
+            total_shareholders_count,epst4q,
+            latest_close_price)
 
 
 def linear_interpolate_sign(data, target_length):
@@ -189,94 +280,6 @@ def pad_data(data, length):
         return data + [None] * (length - len(data))
     return data[:length]
 
-def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code):
-    """从本地文件获取股票数据"""
-    file_path = f'stockData/{stock_code}.json'
-
-    if not os.path.exists(file_path):
-        raise ValueError(f"文件 {file_path} 不存在。请确保文件路径和股票代码正确。")
-
-    with open(file_path, 'r', encoding='utf-8') as file:
-        data = json.load(file)
-
-    monthly_data = data.get("monthly", {})
-    quarterly_data = data.get("quarterly", {})
-
-    # 读取原始数据
-    def extract_data(key):
-        return [parse_float(item[1]) for item in monthly_data.get(key, {}).get("data", []) if item[1] != '無']
-    def extract_data_quarterly(key):
-        return [parse_float(item[1]) for item in quarterly_data.get(key, {}).get("data", []) if item[1] != '無']
-
-    #季度數據
-    epst4q = extract_data_quarterly("EPST4Q")
-    epst4q_interpolated , epst4q_interpolated_last = interpolate_quarterly_to_monthly(epst4q, NUM_DATA_POINTS)
-
-    PB = extract_data("PB")
-    revenue_per_share = extract_data("RevenuePerShare")
-    revenue_per_share_yoy = extract_data("RevenuePerShareYOY")
-    price_data = extract_data("Price")
-
-    revenue_t3m_avg = extract_data("RevenueT3MAvg")
-    revenue_t3m_yoy = extract_data("RevenueT3MYOY")
-    majority_shareholders_share_ratio = extract_data("MajorityShareholdersShareRatio")
-    total_shareholders_count = extract_data("TotalShareholdersCount")
-
-    # 获取最新股价
-    price_file_path = os.path.join('stockData', 'latest_price.json')
-    with open(price_file_path, 'r', encoding='utf-8') as file:
-        latest_price_data = json.load(file)
-
-    latest_close_price = next(
-        (item['price'] for item in latest_price_data if item['stock_code'] == stock_code),
-        None
-    )
-
-    if latest_close_price is None:
-        raise ValueError(f"Stock code {stock_code} not found in latest_price.json")
-
-    # 计算有效数据长度
-    def calculate_valid_length(data_list):
-        return len([x for x in data_list if x is not None])
-
-    valid_length = min(NUM_DATA_POINTS, calculate_valid_length(price_data))
-
-    # print("本次有效數據: " + str(valid_length))
-    # # 从最后开始提取有效长度的数据
-    def get_last_valid_data(lst):
-        valid_data = [x for x in lst if x is not None]
-        return valid_data[-valid_length:]
-
-    epst4q = get_last_valid_data(epst4q_interpolated_last)
-    PB = get_last_valid_data(PB)
-    revenue_per_share = get_last_valid_data(revenue_per_share)
-    revenue_per_share_yoy = get_last_valid_data(revenue_per_share_yoy)
-    price_data = get_last_valid_data(price_data)
-    revenue_t3m_avg = get_last_valid_data(revenue_t3m_avg)
-    revenue_t3m_yoy = get_last_valid_data(revenue_t3m_yoy)
-    majority_shareholders_share_ratio = get_last_valid_data(majority_shareholders_share_ratio)
-    total_shareholders_count = get_last_valid_data(total_shareholders_count)
-
-    # 填充不足的部分
-    epst4q = pad_list(epst4q, valid_length)
-    PB = pad_list(PB, valid_length)
-    revenue_per_share = pad_list(revenue_per_share, valid_length)
-    revenue_per_share_yoy = pad_list(revenue_per_share_yoy, valid_length)
-    price_data = pad_list(price_data, valid_length)
-    revenue_t3m_avg = pad_list(revenue_t3m_avg, valid_length)
-    revenue_t3m_yoy = pad_list(revenue_t3m_yoy, valid_length)
-    majority_shareholders_share_ratio = pad_list(majority_shareholders_share_ratio, valid_length)
-    total_shareholders_count = pad_list(total_shareholders_count, valid_length)
-
-    return (revenue_per_share_yoy,
-            price_data,
-            revenue_per_share,
-            PB,
-            revenue_t3m_avg,
-            revenue_t3m_yoy,
-            majority_shareholders_share_ratio,
-            total_shareholders_count,epst4q,
-            latest_close_price)
 
 def normalize_and_standardize_data(X):
     """
@@ -477,13 +480,12 @@ def calculate_sign_changes(data):
             filled_data.append(value)
             last_valid = value
 
-    # 插入两个0
-    data_with_zeros = [0, 0] + filled_data
+    """计算每个相邻数据点的差值，并在结果前面添加0"""
+    differences = [0]  # 添加0作为第一个元素
+    for i in range(1, len(filled_data)):
+        diff = filled_data[i] - filled_data[i - 1]
+        differences.append(diff)
 
-    # 计算速度
-    velocity = [data_with_zeros[i] - data_with_zeros[i - 1] for i in range(2, len(data_with_zeros))]
 
-    # 计算加速度
-    acceleration = [velocity[i] - velocity[i - 1] for i in range(1, len(velocity))]
+    return differences
 
-    return  velocity
