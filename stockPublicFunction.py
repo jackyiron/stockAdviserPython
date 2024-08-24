@@ -21,6 +21,14 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.interpolate import CubicSpline
+import matplotlib as mpl
+font_path = 'msyh.ttc'
+
+from matplotlib.font_manager import FontProperties
+
+font_properties = FontProperties(fname=font_path)
+mpl.rcParams['font.family'] = font_properties.get_name()
+mpl.rcParams['axes.unicode_minus'] = False  # Ensure minus signs are displayed correctly
 
 os.environ['PYTHONUNBUFFERED'] = '1'
 # sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)

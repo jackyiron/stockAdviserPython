@@ -7,6 +7,8 @@ font_properties = FontProperties(fname=font_path)
 mpl.rcParams['font.family'] = font_properties.get_name()
 mpl.rcParams['axes.unicode_minus'] = False
 
+from sklearn.neural_network import MLPRegressor
+
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
                   epst4q, latest_close_price):
@@ -17,20 +19,22 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # 创建有效数据列表
     valid_data = [
-        (revenue, price, epst4q_value, epst4q_velocity_value, sign)
-        for revenue, price, epst4q_value, epst4q_velocity_value, sign in
-        zip(revenue_t3m_yoy, price_data, epst4q, epst4q_velocity, revenue_t3m_yoy_sign)
-        if None not in (revenue, price, epst4q_value, epst4q_velocity_value, sign) and not (
-                    np.isnan(revenue) or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value))
+        (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign)
+        for revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign in
+        zip(revenue_per_share, revenue_per_share_yoy, revenue_t3m_yoy, price_data, epst4q, epst4q_velocity, revenue_t3m_yoy_sign)
+        if None not in (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign) and not (
+                    np.isnan(revenue_per_share_value) or np.isnan(revenue_per_share_yoy_value) or np.isnan(revenue) or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value))
     ]
 
     if not valid_data:
         return None
 
     # 解包有效数据
-    valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, valid_sign = zip(*valid_data)
+    vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, valid_sign = zip(*valid_data)
 
     # 对数据进行样条插值
+    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
+    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy))
     interpolated_revenue = spline_interpolation(np.array(valid_revenue))
     interpolated_price = spline_interpolation(np.array(valid_price))
     interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
@@ -38,24 +42,27 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     interpolated_sign = spline_interpolation(np.array(valid_sign))
 
     # 准备时间序列数据
+    revenue_per_share_series = interpolated_revenue_per_share.reshape(-1, 1)
+    revenue_per_share_yoy_series = interpolated_revenue_per_share_yoy.reshape(-1, 1)
     price_series = interpolated_price.reshape(-1, 1)
     revenue_series = interpolated_revenue.reshape(-1, 1)
     epst4q_series = interpolated_epst4q.reshape(-1, 1)
     epst4q_velocity_series = interpolated_epst4q_velocity.reshape(-1, 1)
     sign_series = interpolated_sign.reshape(-1, 1)
 
-    # 设置权重：对负的营收可赋予更高的负权重
-    #revenue_weights = np.where(revenue_series < 0, 2.0, 1.0)
-
-    # 正规化与归一化数据，加入权重参数
-    revenue_normalized, scaler_X1 = normalize_and_standardize_data(revenue_series)
-    epst4q_normalized, scaler_X2 = normalize_and_standardize_data(epst4q_series)
-    epst4q_velocity_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_velocity_series)
-    sign_normalized, scaler_X3 = normalize_and_standardize_data(sign_series)
+    # 正规化与归一化数据
+    revenue_per_share_normalized, scaler_X1 = normalize_and_standardize_data(revenue_per_share_series)
+    revenue_per_share_yoy_normalized, scaler_X2 = normalize_and_standardize_data(revenue_per_share_yoy_series)
+    revenue_normalized, scaler_X3 = normalize_and_standardize_data(revenue_series)
+    epst4q_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_series)
+    epst4q_velocity_normalized, scaler_X5 = normalize_and_standardize_data(epst4q_velocity_series)
+    sign_normalized, scaler_X6 = normalize_and_standardize_data(sign_series)
     price_normalized, scaler_y = normalize_and_standardize_data(price_series)
 
     # 合并数据
     X_combined = np.hstack((
+        revenue_per_share_normalized.reshape(-1, 1),
+        revenue_per_share_yoy_normalized.reshape(-1, 1),
         revenue_normalized.reshape(-1, 1),
         epst4q_normalized.reshape(-1, 1),
         epst4q_velocity_normalized.reshape(-1, 1),
@@ -66,7 +73,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2, random_state=42)
 
     # 使用 MLP 模型
-    mlp = MLPRegressor(hidden_layer_sizes=(100, 50), activation='relu', solver='adam', max_iter=2000, random_state=42)
+    mlp = MLPRegressor(hidden_layer_sizes=(100, 100), activation='relu', solver='adam', max_iter=1000, random_state=42)
     mlp.fit(X_train, y_train)
 
     # 预测和评估
@@ -74,12 +81,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
-    current_feature = np.array([[revenue_t3m_yoy[-1], epst4q[-1], epst4q_velocity[-1], revenue_t3m_yoy_sign[-1]]])
+    current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1], epst4q_velocity[-1], revenue_t3m_yoy_sign[-1]]])
     current_feature_scaled = np.hstack((
         scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
         scaler_X2.transform(current_feature[:, 1].reshape(-1, 1)),
-        scaler_X4.transform(current_feature[:, 2].reshape(-1, 1)),
-        scaler_X3.transform(current_feature[:, 3].reshape(-1, 1))
+        scaler_X3.transform(current_feature[:, 2].reshape(-1, 1)),
+        scaler_X4.transform(current_feature[:, 3].reshape(-1, 1)),
+        scaler_X5.transform(current_feature[:, 4].reshape(-1, 1)),
+        scaler_X6.transform(current_feature[:, 5].reshape(-1, 1))
     ))
     estimated_price_scaled = mlp.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
@@ -89,16 +98,16 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     price_diff_percentage = price_difference / latest_close_price * 100
 
     # 根据价格差异和 EPST4Q 的值确定颜色和操作
-    if price_diff_percentage > 50 and epst4q[-1] > 0:
+    if price_diff_percentage > 50:
         color = 'lightseagreen'
         action = '强力买入'
-    elif price_diff_percentage < -50 and epst4q[-1] < 0:
+    elif price_diff_percentage < -50:
         color = 'darkred'
         action = '强力卖出'
-    elif 20 <= price_diff_percentage <= 50 and epst4q[-1] > 0:
+    elif 20 <= price_diff_percentage <= 50:
         color = 'green'
         action = '买入'
-    elif -50 <= price_diff_percentage <= -20 and epst4q[-1] < 0:
+    elif -50 <= price_diff_percentage <= -20:
         color = 'red'
         action = '卖出'
     else:
@@ -107,6 +116,8 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # Predict full data set for plotting
     combined_features_all = np.hstack((
+        revenue_per_share_normalized.reshape(-1, 1),
+        revenue_per_share_yoy_normalized.reshape(-1, 1),
         revenue_normalized.reshape(-1, 1),
         epst4q_normalized.reshape(-1, 1),
         epst4q_velocity_normalized.reshape(-1, 1),
@@ -123,6 +134,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
                       f'MSE: {final_mse:.2f} </span><br>')
 
     return result_message
+
 
 
 
