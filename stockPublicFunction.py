@@ -285,26 +285,27 @@ def normalize_and_standardize_data(X):
     if X.ndim == 1:
         X = X.reshape(-1, 1)
 
-    # 处理极端值：向量化处理
+    # # 处理极端值：向量化处理
     # median = np.median(X, axis=0)
-    # iqr = np.percentile(X, 90, axis=0) - np.percentile(X, 10, axis=0)
+    # iqr = np.percentile(X, 75, axis=0) - np.percentile(X, 25, axis=0)
     #
     # # 设置上下限
     # lower_bound = median - 3 * iqr
     # upper_bound = median + 3 * iqr
-
+    #
     # # 向量化处理极端值
     # X_clipped = np.clip(X, lower_bound, upper_bound)
+
 
     # 标准化
     standard_scaler = StandardScaler()
     X_standardized = standard_scaler.fit_transform(X)
 
     # 归一化到 [0, 1] 范围
-    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
-    X_normalized = min_max_scaler.fit_transform(X_standardized)
+    #min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+    #X_normalized = min_max_scaler.fit_transform(X_standardized)
 
-    return X_normalized, min_max_scaler, standard_scaler
+    return X_standardized, standard_scaler
 
 def normalize_and_standardize_data_weight(X, weights=None):
     """
@@ -387,23 +388,6 @@ def plot_dtw_error(X, y, dtw_distance, dtw_path):
     plt.suptitle(f'DTW Distance: {dtw_distance:.2f}')
     plt.show()
 
-def build_autoencoder(input_dim, encoding_dim):
-    """构建自动编码器模型"""
-    # 编码器
-    input_layer = Input(shape=(input_dim,))
-    encoded = Dense(encoding_dim, activation='relu')(input_layer)
-
-    # 解码器
-    decoded = Dense(input_dim, activation='sigmoid')(encoded)
-
-    # 自动编码器模型
-    autoencoder = Model(inputs=input_layer, outputs=decoded)
-
-    # 编码器模型
-    encoder = Model(inputs=input_layer, outputs=encoded)
-
-    return autoencoder, encoder
-
 def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch_size=256):
     """训练自动编码器并返回编码器"""
     # 构建自动编码器
@@ -418,7 +402,7 @@ def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch
 
     return encoder
 
-def spline_interpolation(data, factor=10, plot=False):
+def spline_interpolation(data, factor=5, plot=False):
     """对数据进行样条插值"""
     n = len(data)
     x = np.arange(n)
@@ -486,3 +470,23 @@ def calculate_sign_changes(data):
 
     return differences
 
+def plot_stock_analysis(stock_name, stock_code, aligned_price, predicted_price):
+    """Plot actual vs. predicted stock prices and save the plot as an image file."""
+
+    plt.figure(figsize=(10, 6))
+
+    # Plot actual stock price
+    plt.plot(aligned_price, label='实际股价', color='blue')
+
+    # Plot predicted stock price
+    plt.plot(predicted_price, label='预测股价', color='orange')
+
+    # Customize plot
+    plt.title(f'{stock_name} ({stock_code}) - 实际股价与预测股价对比')
+    plt.xlabel('时间')
+    plt.ylabel('股价')
+    plt.legend()
+    plt.grid(True)
+
+    # Show plot
+    plt.show()

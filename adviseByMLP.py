@@ -1,21 +1,11 @@
-from sklearn.impute import SimpleImputer
-
-from stockPublicFunction import *
-import numpy as np
 from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from fastdtw import fastdtw
-from scipy.spatial.distance import euclidean
-import matplotlib.pyplot as plt
-
-
-from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
-import numpy as np
-import pandas as pd
+from matplotlib.font_manager import FontProperties
+import matplotlib as mpl
+# Specify the path to your Chinese font
+font_path = 'msyh.ttc'
+font_properties = FontProperties(fname=font_path)
+mpl.rcParams['font.family'] = font_properties.get_name()
+mpl.rcParams['axes.unicode_minus'] = False
 
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
@@ -55,14 +45,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     sign_series = interpolated_sign.reshape(-1, 1)
 
     # 设置权重：对负的营收可赋予更高的负权重
-    revenue_weights = np.where(revenue_series < 0, 2.0, 1.0)
+    #revenue_weights = np.where(revenue_series < 0, 2.0, 1.0)
 
     # 正规化与归一化数据，加入权重参数
-    revenue_normalized, _, scaler_X1 = normalize_and_standardize_data_weight(revenue_series, weights=revenue_weights)
-    epst4q_normalized, _, scaler_X2 = normalize_and_standardize_data(epst4q_series)
-    epst4q_velocity_normalized, _, scaler_X4 = normalize_and_standardize_data(epst4q_velocity_series)
-    sign_normalized, _, scaler_X3 = normalize_and_standardize_data(sign_series)
-    price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
+    revenue_normalized, scaler_X1 = normalize_and_standardize_data(revenue_series)
+    epst4q_normalized, scaler_X2 = normalize_and_standardize_data(epst4q_series)
+    epst4q_velocity_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_velocity_series)
+    sign_normalized, scaler_X3 = normalize_and_standardize_data(sign_series)
+    price_normalized, scaler_y = normalize_and_standardize_data(price_series)
 
     # 合并数据
     X_combined = np.hstack((
@@ -114,6 +104,19 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     else:
         color = 'black'
         action = ''
+
+    # Predict full data set for plotting
+    combined_features_all = np.hstack((
+        revenue_normalized.reshape(-1, 1),
+        epst4q_normalized.reshape(-1, 1),
+        epst4q_velocity_normalized.reshape(-1, 1),
+        sign_normalized.reshape(-1, 1)
+    ))
+    predicted_price = mlp.predict(combined_features_all)
+    predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
+
+    # Plot and save the results
+    # plot_stock_analysis(stock_name, stock_code, interpolated_price, predicted_price)
 
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '

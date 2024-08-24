@@ -5,7 +5,7 @@ from sklearn.svm import SVR
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import GridSearchCV
 from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, PolynomialFeatures
 from fastdtw import fastdtw
 from scipy.spatial.distance import euclidean
 import numpy as np
@@ -15,6 +15,15 @@ from sklearn.svm import SVR
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error
 import numpy as np
+import matplotlib as mpl
+# Specify the path to your Chinese font
+font_path = 'msyh.ttc'
+
+from matplotlib.font_manager import FontProperties
+
+font_properties = FontProperties(fname=font_path)
+mpl.rcParams['font.family'] = font_properties.get_name()
+mpl.rcParams['axes.unicode_minus'] = False  # Ensure minus signs are displayed correctly
 
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
@@ -26,18 +35,18 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # 创建有效数据列表
     valid_data = [
-        (revenue, price, epst4q_value, epst4q_velocity_value, sign)
-        for revenue, price, epst4q_value, epst4q_velocity_value, sign in
-        zip(revenue_t3m_yoy, price_data, epst4q, epst4q_velocity, revenue_t3m_yoy_sign)
-        if None not in (revenue, price, epst4q_value, epst4q_velocity_value, sign) and not (
-                    np.isnan(revenue) or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value))
+        (revenue_per_share_yoy, revenue, price, epst4q_value, epst4q_velocity_value, sign)
+        for revenue_per_share_yoy, revenue, price, epst4q_value, epst4q_velocity_value, sign in
+        zip(revenue_per_share_yoy , revenue_t3m_yoy, price_data, epst4q, epst4q_velocity, revenue_t3m_yoy_sign)
+        if None not in (revenue_per_share_yoy , revenue, price, epst4q_value, epst4q_velocity_value, sign) and not (
+                    np.isnan(revenue_per_share_yoy) or np.isnan(revenue) or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value))
     ]
 
     if not valid_data:
         return None
 
     # 解包有效数据
-    valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, valid_sign = zip(*valid_data)
+    vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, valid_sign = zip(*valid_data)
 
     # 对数据进行样条插值
     interpolated_revenue = spline_interpolation(np.array(valid_revenue))
@@ -53,17 +62,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     epst4q_velocity_series = interpolated_epst4q_velocity.reshape(-1, 1)
     sign_series = interpolated_sign.reshape(-1, 1)
 
-    # 设置权重：对负的营收可赋予更高的负权重
-    revenue_weights = np.where(revenue_series < 0, 2.0, 1.0)
+    # 正规化与归一化数据
+    revenue_normalized, scaler_X1 = normalize_and_standardize_data(revenue_series)
+    epst4q_normalized, scaler_X2 = normalize_and_standardize_data(epst4q_series)
+    epst4q_velocity_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_velocity_series)
+    sign_normalized, scaler_X3 = normalize_and_standardize_data(sign_series)
+    price_normalized, scaler_y = normalize_and_standardize_data(price_series)
 
-    # 正规化与归一化数据，加入权重参数
-    revenue_normalized, _, scaler_X1 = normalize_and_standardize_data_weight(revenue_series, weights=revenue_weights)
-    epst4q_normalized, _, scaler_X2 = normalize_and_standardize_data(epst4q_series)
-    epst4q_velocity_normalized, _, scaler_X4 = normalize_and_standardize_data(epst4q_velocity_series)
-    sign_normalized, _, scaler_X3 = normalize_and_standardize_data(sign_series)
-    price_normalized, min_max_scaler_y, scaler_y = normalize_and_standardize_data(price_series)
-
-    # 训练集和测试集划分
+    # 合并数据
     X_combined = np.hstack((
         revenue_normalized.reshape(-1, 1),
         epst4q_normalized.reshape(-1, 1),
@@ -71,14 +77,15 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         sign_normalized.reshape(-1, 1)
     ))
 
+    # 划分训练集和测试集
     X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2, random_state=42)
 
-    # 直接使用 SVR 模型
-    svr = SVR(kernel='rbf', C=1.0, epsilon=0.1)  # 设置 C 和 epsilon 参数
-    svr.fit(X_train, y_train)
+    # 使用 SVM 模型
+    svm = SVR(kernel='rbf', C=1.0, epsilon=0.1)
+    svm.fit(X_train, y_train)
 
     # 预测和评估
-    y_pred_final = svr.predict(X_test)
+    y_pred_final = svm.predict(X_test)
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
@@ -89,7 +96,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         scaler_X4.transform(current_feature[:, 2].reshape(-1, 1)),
         scaler_X3.transform(current_feature[:, 3].reshape(-1, 1))
     ))
-    estimated_price_scaled = svr.predict(current_feature_scaled)
+    estimated_price_scaled = svm.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
 
     # 计算价格差异
@@ -113,16 +120,25 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         color = 'black'
         action = ''
 
-    result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
-                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
-                      f'MSE: {final_mse:.2f} </span><br>')
+    # Predict full data set for plotting
+    combined_features_all = np.hstack((
+        revenue_normalized.reshape(-1, 1),
+        epst4q_normalized.reshape(-1, 1),
+        epst4q_velocity_normalized.reshape(-1, 1),
+        sign_normalized.reshape(-1, 1)
+    ))
+    predicted_price = svm.predict(combined_features_all)
+    predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
 
+    # Plot and save the results
+    # plot_stock_analysis(stock_name, stock_code, interpolated_price, predicted_price)
 
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
                       f'MSE: {final_mse:.2f} </span><br>')
 
     return result_message
+
 
 
 def main():
