@@ -111,20 +111,18 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     price_diff_percentage = price_difference / latest_close_price * 100
 
     # 根据价格差异和 EPST4Q 的值确定颜色和操作
-    if price_diff_percentage > 50:
-        if epst4q[-1] > 0:
-            color = 'lightseagreen'
-            action = '强力买入'
-        else:
-            color = 'darkred'
-            action = '强力卖出'
-    elif 25 <= price_diff_percentage <= 50:
-        if epst4q[-1] > 0:
-            color = 'green'
-            action = '买入'
-        else:
-            color = 'red'
-            action = '卖出'
+    if price_diff_percentage > 50 and epst4q[-1] > 0:
+        color = 'lightseagreen'
+        action = '强力买入'
+    elif price_diff_percentage < -50 and epst4q[-1] < 0:
+        color = 'darkred'
+        action = '强力卖出'
+    elif 20 <= price_diff_percentage <= 50 and epst4q[-1] > 0:
+        color = 'green'
+        action = '买入'
+    elif -50 <= price_diff_percentage <= -20 and epst4q[-1] < 0:
+        color = 'red'
+        action = '卖出'
     else:
         color = 'black'
         action = ''
