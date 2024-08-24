@@ -461,3 +461,29 @@ def create_lag_features(data, lags=1):
         df[f'lag_{lag}'] = df[0].shift(lag)
     df = df.dropna()
     return df.values
+
+def calculate_sign_changes(data):
+    """计算符号变化，前面插入一个0，并对 None 值进行前向填充"""
+    # 前向填充 None 值
+    filled_data = []
+    last_valid = None
+    for value in data:
+        if value is None:
+            if last_valid is not None:
+                filled_data.append(last_valid)
+            else:
+                filled_data.append(0)  # 根据需求选择填充值，这里用0填充
+        else:
+            filled_data.append(value)
+            last_valid = value
+
+    # 插入两个0
+    data_with_zeros = [0, 0] + filled_data
+
+    # 计算速度
+    velocity = [data_with_zeros[i] - data_with_zeros[i - 1] for i in range(2, len(data_with_zeros))]
+
+    # 计算加速度
+    acceleration = [velocity[i] - velocity[i - 1] for i in range(1, len(velocity))]
+
+    return  velocity
