@@ -87,6 +87,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
 
     revenue_t3m_avg = extract_data("RevenueT3MAvg")
     revenue_t3m_yoy = extract_data("RevenueT3MYOY")
+
     majority_shareholders_share_ratio = extract_data("MajorityShareholdersShareRatio")
     total_shareholders_count = extract_data("TotalShareholdersCount")
 
@@ -410,7 +411,7 @@ def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch
 
     return encoder
 
-def spline_interpolation(data, factor=5, plot=False):
+def spline_interpolation(data, factor=1, plot=False):
     """对数据进行样条插值"""
     n = len(data)
     x = np.arange(n)

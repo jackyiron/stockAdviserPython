@@ -50,13 +50,13 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, valid_sign = zip(*valid_data)
 
     # 对数据进行样条插值
-    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
-    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy))
-    interpolated_revenue = spline_interpolation(np.array(valid_revenue))
-    interpolated_price = spline_interpolation(np.array(valid_price))
-    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
-    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity))
-    interpolated_sign = spline_interpolation(np.array(valid_sign))
+    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share),1)
+    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy),1)
+    interpolated_revenue = spline_interpolation(np.array(valid_revenue),1)
+    interpolated_price = spline_interpolation(np.array(valid_price),1)
+    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q),1)
+    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity),1)
+    interpolated_sign = spline_interpolation(np.array(valid_sign),1)
 
     # 准备时间序列数据
     revenue_per_share_series = interpolated_revenue_per_share.reshape(-1, 1)
@@ -90,7 +90,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2, random_state=42)
 
     # 使用 Ridge Polynomial 模型
-    ridge_poly = make_pipeline(PolynomialFeatures(degree=3), Ridge())
+    ridge_poly = make_pipeline(PolynomialFeatures(degree=1), Ridge())
     ridge_poly.fit(X_train, y_train)
 
     # 预测和评估
@@ -144,7 +144,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
 
     # Plot and save the results
-    # plot_stock_analysis(stock_name, stock_code, interpolated_price, predicted_price)
+    plot_stock_analysis(stock_name, stock_code, interpolated_price, predicted_price)
 
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
@@ -156,7 +156,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
 
 def main():
-    NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
+    NUM_DATA_POINTS = 60  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
     output_file_name = 'svm.html'  # 输出文件名
     results = []  # 收集结果以便于同时写入文件和屏幕显示
