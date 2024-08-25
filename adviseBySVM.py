@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib as mpl
 # Specify the path to your Chinese font
 font_path = 'msyh.ttc'
-
+MODEL='svm'
 from matplotlib.font_manager import FontProperties
 
 font_properties = FontProperties(fname=font_path)
@@ -172,7 +172,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
 
     # Plot and save the results
-    plot_stock_analysis('svm', stock_name, stock_code, interpolated_price, predicted_price, False)
+    plot_stock_analysis(MODEL, stock_name, stock_code, interpolated_price, predicted_price, False)
 
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
@@ -186,15 +186,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 def main():
     NUM_DATA_POINTS = 60  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
-    output_file_name = 'svm.html'  # 输出文件名
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
     if FETCH_LATEST_CLOSE_PRICE_ONLINE:
         getLatestPrice()
 
     # 确保输出目录存在
-    if not os.path.exists('docs'):
-        os.makedirs('docs')
+    if not os.path.exists(f'docs/{MODEL}'):
+        os.makedirs(f'docs/{MODEL}')
 
     with open('stockList.txt', 'r', encoding='utf-8') as file_list:
         lines = file_list.readlines()
@@ -228,7 +227,7 @@ def main():
             results.append(error_message)
 
     # 写入 HTML 文件
-    with open(f'docs/{output_file_name}', 'w', encoding='utf-8') as file:
+    with open(f'docs/{MODEL}/index.html', 'w', encoding='utf-8') as file:
         file.write('<html><head><title>股票分析结果</title></head><body>\n')
         file.write('<h1>股票分析结果</h1>\n')
         for result in results:

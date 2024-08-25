@@ -498,7 +498,7 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     plt.grid(True)
 
     # Create directory if it doesn't exist
-    save_dir = f'docs/pic/{model}'
+    save_dir = f'docs/{model}/'
     os.makedirs(save_dir, exist_ok=True)
 
     # Save the plot as an image file

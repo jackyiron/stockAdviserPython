@@ -2,6 +2,7 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split, GridSearchCV
 import numpy as np
+MODEL='ridge'
 
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
@@ -124,14 +125,16 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
 
 def main():
-    NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
+    NUM_DATA_POINTS = 60  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
-    output_file_name = 'ridge.html'  # 输出文件名
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
+    if FETCH_LATEST_CLOSE_PRICE_ONLINE:
+        getLatestPrice()
+
     # 确保输出目录存在
-    if not os.path.exists('docs'):
-        os.makedirs('docs')
+    if not os.path.exists(f'docs/{MODEL}'):
+        os.makedirs(f'docs/{MODEL}')
 
     with open('stockList.txt', 'r', encoding='utf-8') as file_list:
         lines = file_list.readlines()
@@ -165,7 +168,7 @@ def main():
             results.append(error_message)
 
     # 写入 HTML 文件
-    with open(f'docs/{output_file_name}', 'w', encoding='utf-8') as file:
+    with open(f'docs/{MODEL}/index.html', 'w', encoding='utf-8') as file:
         file.write('<html><head><title>股票分析结果</title></head><body>\n')
         file.write('<h1>股票分析结果</h1>\n')
         for result in results:
