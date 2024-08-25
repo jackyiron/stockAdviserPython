@@ -6,40 +6,52 @@ font_path = 'msyh.ttc'
 font_properties = FontProperties(fname=font_path)
 mpl.rcParams['font.family'] = font_properties.get_name()
 mpl.rcParams['axes.unicode_minus'] = False
+MODEL='mlp'
 
 from sklearn.neural_network import MLPRegressor
-
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
-                  epst4q, latest_close_price):
+                  epst4q, volume_m, volume_m_avg, latest_close_price):
     """分析股票数据"""
-    # 提取 revenue_t3m_yoy 和 epst4q 的符号信息
+    # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
     epst4q_velocity = calculate_sign_changes(epst4q)
 
     # 创建有效数据列表
     valid_data = [
-        (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign)
-        for revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign in
-        zip(revenue_per_share, revenue_per_share_yoy, revenue_t3m_yoy, price_data, epst4q, epst4q_velocity, revenue_t3m_yoy_sign)
-        if None not in (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign) and not (
-                    np.isnan(revenue_per_share_value) or np.isnan(revenue_per_share_yoy_value) or np.isnan(revenue) or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value))
+        (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
+         majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, sign)
+        for revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
+            majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, sign in
+        zip(revenue_per_share, revenue_per_share_yoy, revenue_t3m_yoy, price_data, epst4q, epst4q_velocity,
+            majority_shareholders_share_ratio, revenue_t3m_avg, PB, volume_m_avg, revenue_t3m_yoy_sign)
+        if None not in (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value,
+                        epst4q_velocity_value, majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, sign)
+        and not (np.isnan(revenue_per_share_value) or np.isnan(revenue_per_share_yoy_value) or np.isnan(revenue)
+                 or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value)
+                 or np.isnan(majority_shareholders_value) or np.isnan(revenue_t3m_avg_value)
+                 or np.isnan(pb_value) or np.isnan(volume_value))
     ]
 
     if not valid_data:
         return None
 
     # 解包有效数据
-    vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, valid_sign = zip(*valid_data)
+    vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, \
+    valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_volume, valid_sign = zip(*valid_data)
 
     # 对数据进行样条插值
-    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share),1)
-    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy),1)
-    interpolated_revenue = spline_interpolation(np.array(valid_revenue),1)
-    interpolated_price = spline_interpolation(np.array(valid_price),1)
-    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q),1)
-    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity),1)
-    interpolated_sign = spline_interpolation(np.array(valid_sign),1)
+    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
+    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy))
+    interpolated_revenue = spline_interpolation(np.array(valid_revenue))
+    interpolated_price = spline_interpolation(np.array(valid_price))
+    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
+    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity))
+    interpolated_majority_shareholders = spline_interpolation(np.array(valid_majority_shareholders))
+    interpolated_revenue_t3m_avg = spline_interpolation(np.array(valid_revenue_t3m_avg))
+    interpolated_pb = spline_interpolation(np.array(valid_pb))
+    interpolated_volume = spline_interpolation(np.array(valid_volume))
+    interpolated_sign = spline_interpolation(np.array(valid_sign))
 
     # 准备时间序列数据
     revenue_per_share_series = interpolated_revenue_per_share.reshape(-1, 1)
@@ -48,6 +60,10 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     revenue_series = interpolated_revenue.reshape(-1, 1)
     epst4q_series = interpolated_epst4q.reshape(-1, 1)
     epst4q_velocity_series = interpolated_epst4q_velocity.reshape(-1, 1)
+    majority_shareholders_series = interpolated_majority_shareholders.reshape(-1, 1)
+    revenue_t3m_avg_series = interpolated_revenue_t3m_avg.reshape(-1, 1)
+    pb_series = interpolated_pb.reshape(-1, 1)
+    volume_series = interpolated_volume.reshape(-1, 1)
     sign_series = interpolated_sign.reshape(-1, 1)
 
     # 正规化与归一化数据
@@ -56,7 +72,11 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     revenue_normalized, scaler_X3 = normalize_and_standardize_data(revenue_series)
     epst4q_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_series)
     epst4q_velocity_normalized, scaler_X5 = normalize_and_standardize_data(epst4q_velocity_series)
-    sign_normalized, scaler_X6 = normalize_and_standardize_data(sign_series)
+    majority_shareholders_normalized, scaler_X6 = normalize_and_standardize_data(majority_shareholders_series)
+    revenue_t3m_avg_normalized, scaler_X7 = normalize_and_standardize_data(revenue_t3m_avg_series)
+    pb_normalized, scaler_X8 = normalize_and_standardize_data(pb_series)
+    volume_normalized, scaler_X9 = normalize_and_standardize_data(volume_series)
+    sign_normalized, scaler_X10 = normalize_and_standardize_data(sign_series)
     price_normalized, scaler_y = normalize_and_standardize_data(price_series)
 
     # 合并数据
@@ -66,14 +86,32 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         revenue_normalized.reshape(-1, 1),
         epst4q_normalized.reshape(-1, 1),
         epst4q_velocity_normalized.reshape(-1, 1),
+        majority_shareholders_normalized.reshape(-1, 1),
+        revenue_t3m_avg_normalized.reshape(-1, 1),
+        pb_normalized.reshape(-1, 1),
+        volume_normalized.reshape(-1, 1),
         sign_normalized.reshape(-1, 1)
     ))
 
     # 划分训练集和测试集
     X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2, random_state=42)
 
-    # 使用 MLP 模型
-    mlp = MLPRegressor(hidden_layer_sizes=(100, 100), activation='relu', solver='adam', max_iter=1000, random_state=42)
+    # 使用多层感知器回归模型并进行超参数调优
+    mlp = MLPRegressor(max_iter=1000, random_state=42)
+
+    # 定义超参数网格
+    parameter_grid = {
+        'hidden_layer_sizes': [(50,), (100,), (150,)],
+        'activation': ['relu', 'tanh'],
+        'solver': ['adam', 'sgd'],
+        'alpha': [0.0001, 0.001],
+        'learning_rate': ['constant', 'adaptive']
+    }
+
+    # 使用多层感知器回归模型
+    mlp = MLPRegressor(max_iter=1000, random_state=42)
+
+    # 训练模型
     mlp.fit(X_train, y_train)
 
     # 预测和评估
@@ -81,14 +119,19 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
-    current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1], epst4q_velocity[-1], revenue_t3m_yoy_sign[-1]]])
+    current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1],
+                                 epst4q_velocity[-1], majority_shareholders_share_ratio[-1], revenue_t3m_avg[-1], PB[-1], volume_m[-1], revenue_t3m_yoy_sign[-1]]])
     current_feature_scaled = np.hstack((
         scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
         scaler_X2.transform(current_feature[:, 1].reshape(-1, 1)),
         scaler_X3.transform(current_feature[:, 2].reshape(-1, 1)),
         scaler_X4.transform(current_feature[:, 3].reshape(-1, 1)),
         scaler_X5.transform(current_feature[:, 4].reshape(-1, 1)),
-        scaler_X6.transform(current_feature[:, 5].reshape(-1, 1))
+        scaler_X6.transform(current_feature[:, 5].reshape(-1, 1)),
+        scaler_X7.transform(current_feature[:, 6].reshape(-1, 1)),
+        scaler_X8.transform(current_feature[:, 7].reshape(-1, 1)),
+        scaler_X9.transform(current_feature[:, 8].reshape(-1, 1)),
+        scaler_X10.transform(current_feature[:, 9].reshape(-1, 1))
     ))
     estimated_price_scaled = mlp.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
@@ -121,14 +164,21 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         revenue_normalized.reshape(-1, 1),
         epst4q_normalized.reshape(-1, 1),
         epst4q_velocity_normalized.reshape(-1, 1),
+        majority_shareholders_normalized.reshape(-1, 1),
+        revenue_t3m_avg_normalized.reshape(-1, 1),
+        pb_normalized.reshape(-1, 1),
+        volume_normalized.reshape(-1, 1),
         sign_normalized.reshape(-1, 1)
     ))
+
     predicted_price = mlp.predict(combined_features_all)
     predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
 
+    # 绘图
     # Plot and save the results
-    plot_stock_analysis(stock_name, stock_code, interpolated_price, predicted_price)
+    plot_stock_analysis('mlp' , stock_name, stock_code, interpolated_price, predicted_price, False)
 
+    # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
                       f'MSE: {final_mse:.2f} </span><br>')
@@ -136,20 +186,17 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     return result_message
 
 
-
-
 def main():
     NUM_DATA_POINTS = 60  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
-    output_file_name = 'mlp.html'  # 输出文件名
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
     if FETCH_LATEST_CLOSE_PRICE_ONLINE:
         getLatestPrice()
 
     # 确保输出目录存在
-    if not os.path.exists('docs'):
-        os.makedirs('docs')
+    if not os.path.exists(f'docs/{MODEL}'):
+        os.makedirs(f'docs/{MODEL}')
 
     with open('stockList.txt', 'r', encoding='utf-8') as file_list:
         lines = file_list.readlines()
@@ -166,11 +213,11 @@ def main():
         try:
             (revenue_per_share_yoy, price_data, revenue_per_share, PB,
              revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
-             total_shareholders_count, epst4q ,latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
+             total_shareholders_count, epst4q ,volume_m , volume_m_avg ,latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
 
             result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
                                    revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
-                                   majority_shareholders_share_ratio, total_shareholders_count,epst4q,
+                                   majority_shareholders_share_ratio, total_shareholders_count,epst4q, volume_m, volume_m_avg,
                                    latest_close_price)
 
             if result:
@@ -183,7 +230,7 @@ def main():
             results.append(error_message)
 
     # 写入 HTML 文件
-    with open(f'docs/{output_file_name}', 'w', encoding='utf-8') as file:
+    with open(f'docs/{MODEL}/index.html', 'w', encoding='utf-8') as file:
         file.write('<html><head><title>股票分析结果</title></head><body>\n')
         file.write('<h1>股票分析结果</h1>\n')
         for result in results:

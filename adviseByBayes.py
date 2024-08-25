@@ -178,13 +178,6 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     return result_message
 
 
-
-
-
-from stockPublicFunction import *
-
-
-
 def main():
     NUM_DATA_POINTS = 60  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據

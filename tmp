@@ -1,0 +1,8 @@
+    # 使用 SVM 模型
+    svm_model = make_pipeline(StandardScaler(), SVR(kernel='rbf', C=1.0, epsilon=0.1))
+
+    svm_model.fit(X_train, y_train)
+
+    # 预测和评估
+    y_pred_final = svm_model.predict(X_test)
+    final_mse = mean_squared_error(y_test, y_pred_final)

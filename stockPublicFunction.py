@@ -104,8 +104,6 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     # 移除前两个 NaN 值
     volume_m_avg = df['3_m_MA'].dropna().values.tolist()
 
-    # Plot predicted stock price
-    plt.plot(volume_m_avg, label='volume_m_avg', color='orange')
 
     PB = extract_data("PB")
     revenue_per_share = extract_data("RevenuePerShare")
@@ -117,7 +115,6 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     total_shareholders_count = extract_data("TotalShareholdersCount")
 
     # 获取最新股价
-
     price_file_path = os.path.join('stockData', 'latest_price.json')
     with open(price_file_path, 'r', encoding='utf-8') as file:
         latest_price_data = json.load(file)
