@@ -37,7 +37,6 @@ os.environ['PYTHONUNBUFFERED'] = '1'
 # 常量
 URL_TEMPLATE = "https://statementdog.com/api/v2/fundamentals/{stock_code}/2014/2024/cf?qbu=true&qf=analysis"
 
-
 # 定義請求頭
 HEADERS = {
     "accept": "application/json, text/plain, */*",
@@ -55,15 +54,29 @@ HEADERS = {
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     "x-csrf-token": "m5_fWNYl2lS5m4iIczHtKCm2wHDZI9S9mTlVt1l3aTjb3mg9DK9yfbtypwyRp60MEKT4KWzyuSq1r__ShI-Ddw"
 }
+
 def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code):
     """从本地文件获取股票数据"""
     file_path = f'stockData/{stock_code}.json'
+    volume_path= f'stockData/{stock_code}_m_vol.json'
 
-    if not os.path.exists(file_path):
+    if not os.path.exists(file_path) :
         raise ValueError(f"文件 {file_path} 不存在。请确保文件路径和股票代码正确。")
+
+    if not os.path.exists(volume_path) :
+        raise ValueError(f"文件 {volume_path} 不存在。请确保文件路径和股票代码正确。")
+
 
     with open(file_path, 'r', encoding='utf-8') as file:
         data = json.load(file)
+
+    with open(volume_path, 'r', encoding='utf-8') as file:
+        volume_data = json.load(file)
+
+
+    # 获取每个子列表的倒数第二个值，移除逗号并转换为整数
+    m_volume_data = [int(entry[-2].replace(',', '')) for entry in volume_data["data"]]
+
 
     monthly_data = data.get("monthly", {})
     quarterly_data = data.get("quarterly", {})
@@ -80,14 +93,26 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     epst4q_interpolated , epst4q_interpolated_last = interpolate_quarterly_to_monthly(epst4q, NUM_DATA_POINTS)
     #print(epst4q_interpolated_last)
     #exit()
+
+    #get_volume_3m_avf
+    volume_m = m_volume_data[-NUM_DATA_POINTS:]
+    extended_volume_data  = m_volume_data[-NUM_DATA_POINTS-2:]
+    # 将数据转换为 pandas 的 DataFrame
+    df = pd.DataFrame(extended_volume_data , columns=['volume'])
+    # 使用 pandas 计算3m的移动平均
+    df['3_m_MA'] = df['volume'].rolling(window=3, min_periods=3).mean()
+    # 移除前两个 NaN 值
+    volume_m_avg = df['3_m_MA'].dropna().values.tolist()
+
+    # 计算 3 天的移动平均值
+
+
     PB = extract_data("PB")
     revenue_per_share = extract_data("RevenuePerShare")
     revenue_per_share_yoy = extract_data("RevenuePerShareYOY")
     price_data = extract_data("Price")
-
     revenue_t3m_avg = extract_data("RevenueT3MAvg")
     revenue_t3m_yoy = extract_data("RevenueT3MYOY")
-
     majority_shareholders_share_ratio = extract_data("MajorityShareholdersShareRatio")
     total_shareholders_count = extract_data("TotalShareholdersCount")
 
@@ -111,7 +136,6 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
 
     valid_length = min(NUM_DATA_POINTS, calculate_valid_length(price_data))
 
-    # print("本次有效數據: " + str(valid_length))
     # # 从最后开始提取有效长度的数据
     def get_last_valid_data(lst):
         valid_data = [x for x in lst if x is not None]
@@ -145,7 +169,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
             revenue_t3m_avg,
             revenue_t3m_yoy,
             majority_shareholders_share_ratio,
-            total_shareholders_count,epst4q,
+            total_shareholders_count,epst4q, volume_m,volume_m_avg,
             latest_close_price)
 
 
@@ -397,21 +421,7 @@ def plot_dtw_error(X, y, dtw_distance, dtw_path):
     plt.suptitle(f'DTW Distance: {dtw_distance:.2f}')
     plt.show()
 
-def train_autoencoder(X_train, X_test, input_dim, encoding_dim, epochs=50, batch_size=256):
-    """训练自动编码器并返回编码器"""
-    # 构建自动编码器
-    autoencoder, encoder = build_autoencoder(input_dim, encoding_dim)
-
-    # 编译模型
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-
-    # 训练自动编码器
-    autoencoder.fit(X_train, X_train, epochs=epochs, batch_size=batch_size, shuffle=True,
-                    validation_data=(X_test, X_test), verbose=0)
-
-    return encoder
-
-def spline_interpolation(data, factor=1, plot=False):
+def spline_interpolation(data, factor=1):
     """对数据进行样条插值"""
     n = len(data)
     x = np.arange(n)
@@ -420,30 +430,6 @@ def spline_interpolation(data, factor=1, plot=False):
     # 新的插值点
     x_new = np.linspace(0, n - 1, factor * n - (factor - 1))
     interpolated_data = cs(x_new)
-
-    if plot:
-        # 绘制插值前后的数据
-        plt.figure(figsize=(14, 8))
-        plt.subplot(3, 1, 1)
-        plt.plot(data, 'o-', label='Original Revenue YOY', color='blue')
-        plt.plot(interpolated_data, 'x--', label='Interpolated Revenue YOY (3x)', color='red')
-        plt.title('Revenue YOY: Original vs Interpolated')
-        plt.legend()
-
-        plt.subplot(3, 1, 2)
-        plt.plot(data, 'o-', label='Original Price', color='blue')
-        plt.plot(interpolated_data, 'x--', label='Interpolated Price (3x)', color='red')
-        plt.title('Price: Original vs Interpolated')
-        plt.legend()
-
-        plt.subplot(3, 1, 3)
-        plt.plot(data, 'o-', label='Original Revenue Per Share', color='blue')
-        plt.plot(interpolated_data, 'x--', label='Interpolated Revenue Per Share (3x)', color='red')
-        plt.title('Revenue Per Share: Original vs Interpolated')
-        plt.legend()
-
-        plt.tight_layout()
-        plt.show()
 
     return interpolated_data
 
