@@ -104,8 +104,8 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     # 移除前两个 NaN 值
     volume_m_avg = df['3_m_MA'].dropna().values.tolist()
 
-    # 计算 3 天的移动平均值
-
+    # Plot predicted stock price
+    plt.plot(volume_m_avg, label='volume_m_avg', color='orange')
 
     PB = extract_data("PB")
     revenue_per_share = extract_data("RevenuePerShare")

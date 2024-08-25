@@ -38,7 +38,6 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
                  or np.isnan(pb_value) or np.isnan(volume_value))
     ]
 
-    print(volume_m_avg)
     if not valid_data:
         return None
 
@@ -169,7 +168,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # 绘图
     # Plot and save the results
-    plot_stock_analysis('bayes' , stock_name, stock_code, interpolated_price, predicted_price, True)
+    plot_stock_analysis('bayes' , stock_name, stock_code, interpolated_price, predicted_price, False)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
