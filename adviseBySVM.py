@@ -30,33 +30,44 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
                   epst4q, latest_close_price):
     """分析股票数据"""
-    # 提取 revenue_t3m_yoy 和 epst4q 的符号信息
+    # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
     epst4q_velocity = calculate_sign_changes(epst4q)
 
     # 创建有效数据列表
     valid_data = [
-        (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign)
-        for revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign in
-        zip(revenue_per_share, revenue_per_share_yoy, revenue_t3m_yoy, price_data, epst4q, epst4q_velocity, revenue_t3m_yoy_sign)
-        if None not in (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value, sign) and not (
-                    np.isnan(revenue_per_share_value) or np.isnan(revenue_per_share_yoy_value) or np.isnan(revenue) or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value))
+        (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
+         majority_shareholders_value, revenue_t3m_avg_value, pb_value, sign)
+        for revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
+            majority_shareholders_value, revenue_t3m_avg_value, pb_value, sign in
+        zip(revenue_per_share, revenue_per_share_yoy, revenue_t3m_yoy, price_data, epst4q, epst4q_velocity,
+            majority_shareholders_share_ratio, revenue_t3m_avg, PB, revenue_t3m_yoy_sign)
+        if None not in (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value,
+                        epst4q_velocity_value, majority_shareholders_value, revenue_t3m_avg_value, pb_value, sign)
+        and not (np.isnan(revenue_per_share_value) or np.isnan(revenue_per_share_yoy_value) or np.isnan(revenue)
+                 or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value)
+                 or np.isnan(majority_shareholders_value) or np.isnan(revenue_t3m_avg_value)
+                 or np.isnan(pb_value))
     ]
 
     if not valid_data:
         return None
 
     # 解包有效数据
-    vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, valid_sign = zip(*valid_data)
+    vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, \
+    valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_sign = zip(*valid_data)
 
     # 对数据进行样条插值
-    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share),1)
-    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy),1)
-    interpolated_revenue = spline_interpolation(np.array(valid_revenue),1)
-    interpolated_price = spline_interpolation(np.array(valid_price),1)
-    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q),1)
-    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity),1)
-    interpolated_sign = spline_interpolation(np.array(valid_sign),1)
+    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
+    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy))
+    interpolated_revenue = spline_interpolation(np.array(valid_revenue))
+    interpolated_price = spline_interpolation(np.array(valid_price))
+    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
+    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity))
+    interpolated_majority_shareholders = spline_interpolation(np.array(valid_majority_shareholders))
+    interpolated_revenue_t3m_avg = spline_interpolation(np.array(valid_revenue_t3m_avg))
+    interpolated_pb = spline_interpolation(np.array(valid_pb))
+    interpolated_sign = spline_interpolation(np.array(valid_sign))
 
     # 准备时间序列数据
     revenue_per_share_series = interpolated_revenue_per_share.reshape(-1, 1)
@@ -65,6 +76,9 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     revenue_series = interpolated_revenue.reshape(-1, 1)
     epst4q_series = interpolated_epst4q.reshape(-1, 1)
     epst4q_velocity_series = interpolated_epst4q_velocity.reshape(-1, 1)
+    majority_shareholders_series = interpolated_majority_shareholders.reshape(-1, 1)
+    revenue_t3m_avg_series = interpolated_revenue_t3m_avg.reshape(-1, 1)
+    pb_series = interpolated_pb.reshape(-1, 1)
     sign_series = interpolated_sign.reshape(-1, 1)
 
     # 正规化与归一化数据
@@ -73,7 +87,10 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     revenue_normalized, scaler_X3 = normalize_and_standardize_data(revenue_series)
     epst4q_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_series)
     epst4q_velocity_normalized, scaler_X5 = normalize_and_standardize_data(epst4q_velocity_series)
-    sign_normalized, scaler_X6 = normalize_and_standardize_data(sign_series)
+    majority_shareholders_normalized, scaler_X6 = normalize_and_standardize_data(majority_shareholders_series)
+    revenue_t3m_avg_normalized, scaler_X7 = normalize_and_standardize_data(revenue_t3m_avg_series)
+    pb_normalized, scaler_X8 = normalize_and_standardize_data(pb_series)
+    sign_normalized, scaler_X9 = normalize_and_standardize_data(sign_series)
     price_normalized, scaler_y = normalize_and_standardize_data(price_series)
 
     # 合并数据
@@ -83,31 +100,39 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         revenue_normalized.reshape(-1, 1),
         epst4q_normalized.reshape(-1, 1),
         epst4q_velocity_normalized.reshape(-1, 1),
+        majority_shareholders_normalized.reshape(-1, 1),
+        revenue_t3m_avg_normalized.reshape(-1, 1),
+        pb_normalized.reshape(-1, 1),
         sign_normalized.reshape(-1, 1)
     ))
 
     # 划分训练集和测试集
     X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2, random_state=42)
 
-    # 使用 Ridge Polynomial 模型
-    ridge_poly = make_pipeline(PolynomialFeatures(degree=1), Ridge())
-    ridge_poly.fit(X_train, y_train)
+    # 使用 SVM 模型
+    svm_model = make_pipeline(StandardScaler(), SVR(kernel='rbf', C=1.0, epsilon=0.1))
+
+    svm_model.fit(X_train, y_train)
 
     # 预测和评估
-    y_pred_final = ridge_poly.predict(X_test)
+    y_pred_final = svm_model.predict(X_test)
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
-    current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1], epst4q_velocity[-1], revenue_t3m_yoy_sign[-1]]])
+    current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1],
+                                 epst4q_velocity[-1], majority_shareholders_share_ratio[-1], revenue_t3m_avg[-1], PB[-1], revenue_t3m_yoy_sign[-1]]])
     current_feature_scaled = np.hstack((
         scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
         scaler_X2.transform(current_feature[:, 1].reshape(-1, 1)),
         scaler_X3.transform(current_feature[:, 2].reshape(-1, 1)),
         scaler_X4.transform(current_feature[:, 3].reshape(-1, 1)),
         scaler_X5.transform(current_feature[:, 4].reshape(-1, 1)),
-        scaler_X6.transform(current_feature[:, 5].reshape(-1, 1))
+        scaler_X6.transform(current_feature[:, 5].reshape(-1, 1)),
+        scaler_X7.transform(current_feature[:, 6].reshape(-1, 1)),
+        scaler_X8.transform(current_feature[:, 7].reshape(-1, 1)),
+        scaler_X9.transform(current_feature[:, 8].reshape(-1, 1))
     ))
-    estimated_price_scaled = ridge_poly.predict(current_feature_scaled)
+    estimated_price_scaled = svm_model.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
 
     # 计算价格差异
@@ -138,13 +163,16 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         revenue_normalized.reshape(-1, 1),
         epst4q_normalized.reshape(-1, 1),
         epst4q_velocity_normalized.reshape(-1, 1),
+        majority_shareholders_normalized.reshape(-1, 1),
+        revenue_t3m_avg_normalized.reshape(-1, 1),
+        pb_normalized.reshape(-1, 1),
         sign_normalized.reshape(-1, 1)
     ))
-    predicted_price = ridge_poly.predict(combined_features_all)
+    predicted_price = svm_model.predict(combined_features_all)
     predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
 
     # Plot and save the results
-    plot_stock_analysis(stock_name, stock_code, interpolated_price, predicted_price)
+    plot_stock_analysis('svm', stock_name, stock_code, interpolated_price, predicted_price, False)
 
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '

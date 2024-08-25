@@ -479,7 +479,7 @@ def calculate_sign_changes(data):
 
     return differences
 
-def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted_price , plot):
+def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted_price , plot=False):
     """Plot actual vs. predicted stock prices and save the plot as an image file."""
 
     plt.figure(figsize=(10, 6))
@@ -498,15 +498,14 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     plt.grid(True)
 
     # Create directory if it doesn't exist
-    save_dir = f'doc/pic/{model}'
+    save_dir = f'docs/pic/{model}'
     os.makedirs(save_dir, exist_ok=True)
 
     # Save the plot as an image file
     save_path = f'{save_dir}/{stock_code}.png'
     plt.savefig(save_path)
-    # Close the figure to free up memory
-    plt.close()
-
     if plot:
         # Show plot
         plt.show()
+    # Close the figure to free up memory
+    plt.close()
