@@ -489,7 +489,6 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     # Close the figure to free up memory
     plt.close()
 
-
 def calculate_volume_ratio(num , stock_code ,length=25):
     # 文件路径
     file_path = f'stockData/{stock_code}_m_vol.json'
@@ -543,8 +542,6 @@ def calculate_volume_ratio(num , stock_code ,length=25):
 
     return volumes, VR_values
 
-
-
 def print_lengths(*args):
     """打印每个参数的长度"""
     for i, arg in enumerate(args):
@@ -560,7 +557,6 @@ def print_lengths(*args):
             print(f"Argument {i + 1} is not a supported type for length calculation.")
 
     exit()
-
 
 def interpolate_multiple_data(**data_dict):
     """

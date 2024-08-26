@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.naive_bayes import GaussianNB
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
@@ -18,10 +19,6 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
                   epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price):
     """分析股票数据"""
-
-    #print_lengths(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
-     #             PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
-     #             epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price)
 
     # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
@@ -46,44 +43,35 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     if not valid_data:
         return None
 
-
     # 解包有效数据
     vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, \
     valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_volume, valid_vr_value, valid_sign = zip(*valid_data)
 
-
-    # 对数据进行样条插值
-    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
-    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy))
-    interpolated_revenue = spline_interpolation(np.array(valid_revenue))
-    interpolated_price = spline_interpolation(np.array(valid_price))
-    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
-    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity))
-    interpolated_majority_shareholders = spline_interpolation(np.array(valid_majority_shareholders))
-    interpolated_revenue_t3m_avg = spline_interpolation(np.array(valid_revenue_t3m_avg))
-    interpolated_pb = spline_interpolation(np.array(valid_pb))
-    interpolated_volume = spline_interpolation(np.array(valid_volume))
-    interpolated_vr_value = spline_interpolation(np.array(valid_vr_value))
-    interpolated_sign = np.array(valid_sign)
+    # 将数据集打包后统一进行插值
+    interpolated_data = interpolate_multiple_data(
+        revenue_per_share=vaild_revenue_per_share,
+        revenue_per_share_yoy=vaild_revenue_per_share_yoy,
+        revenue=valid_revenue,
+        epst4q=valid_epst4q,
+        epst4q_velocity=valid_epst4q_velocity,
+        majority_shareholders=valid_majority_shareholders,
+        revenue_t3m_avg=valid_revenue_t3m_avg,
+        pb=valid_pb,
+        volume=valid_volume,
+        vr_value=valid_vr_value,
+        sign=valid_sign  # 对于 sign 数据集，这里只是返回原始数据
+    )
 
     # 正规化与归一化数据
+    interpolated_price = spline_interpolation(valid_price)
     price_normalized, scaler_y = normalize_and_standardize_data(interpolated_price)
 
     # 合并数据
-    X_combined = np.hstack((
-        np.array(interpolated_revenue_per_share).reshape(-1, 1),
-        np.array(interpolated_revenue_per_share_yoy).reshape(-1, 1),
-        np.array(interpolated_revenue).reshape(-1, 1),
-        np.array(interpolated_epst4q).reshape(-1, 1),
-        np.array(interpolated_epst4q_velocity).reshape(-1, 1),
-        np.array(interpolated_majority_shareholders).reshape(-1, 1),
-        np.array(interpolated_revenue_t3m_avg).reshape(-1, 1),
-        np.array(interpolated_pb).reshape(-1, 1),
-        np.array(interpolated_volume).reshape(-1, 1),
-        np.array(interpolated_vr_value).reshape(-1, 1),
-        np.array(interpolated_sign).reshape(-1, 1)
-    ))
-    X_combined_normalize , x_scaler = normalize_and_standardize_data(X_combined)  # 对输入特征进行标准化
+    # 对 interpolated_data 字典中的每个键值进行 reshape，然后堆叠成一个二维数组
+    X_combined = np.hstack([value.reshape(-1, 1) for value in interpolated_data.values()])
+
+    # 对输入特征进行标准化
+    X_combined_normalize , x_scaler = normalize_and_standardize_data(X_combined)
 
     assert X_combined.shape[1] == 11, "X_combined 数据的特征数量应为 11"
     # 划分训练集和测试集
@@ -91,7 +79,6 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # 使用贝叶斯回归模型
     bayesian_ridge = make_pipeline(PolynomialFeatures(degree=1), BayesianRidge())
-
     bayesian_ridge.fit(X_train, y_train)
 
     # 预测和评估
