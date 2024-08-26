@@ -59,9 +59,10 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         pb=valid_pb,
         volume=valid_volume,
         vr_value=valid_vr_value,
-        sign=valid_sign  # 对于 sign 数据集，这里只是返回原始数据
+        sign=valid_sign
     )
 
+    print(interpolated_data['sign'])
     # 正规化与归一化数据
     interpolated_price = spline_interpolation(valid_price)
     price_normalized, scaler_y = normalize_and_standardize_data(interpolated_price)
@@ -114,7 +115,6 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     else:
         color = 'black'
         action = ''
-
 
     # 绘图
     # Plot and save the results
