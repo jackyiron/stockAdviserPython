@@ -92,7 +92,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     estimated_price_scaled = bayesian_ridge.predict(X_combined_normalize)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()
-    estimated_price_last = estimated_price[0]
+    estimated_price_last = estimated_price[-1]
 
     assert estimated_price.shape == interpolated_price.shape, "反归一化后的预测值形状不正确"
     # 计算价格差异
@@ -123,7 +123,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # 绘图
     # Plot and save the results
-    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price_last ,True)
+    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,False)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
