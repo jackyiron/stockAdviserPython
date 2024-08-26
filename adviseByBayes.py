@@ -62,7 +62,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         sign=valid_sign
     )
 
-    print(interpolated_data['sign'])
+
     # 正规化与归一化数据
     interpolated_price = spline_interpolation(valid_price)
     price_normalized, scaler_y = normalize_and_standardize_data(interpolated_price)
@@ -116,9 +116,14 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         color = 'black'
         action = ''
 
+    interpolated_price = np.append((interpolated_price),latest_close_price)
+    df = pd.DataFrame(estimated_price, columns=['Value'])
+    # 計算 5 日移動平均值
+    df['3_day_MA'] = df['Value'].rolling(window=3).mean()
+
     # 绘图
     # Plot and save the results
-    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price, False)
+    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price_last ,True)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
