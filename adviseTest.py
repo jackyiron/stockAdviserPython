@@ -1,385 +1,218 @@
-from skopt import gp_minimize
-from joblib import parallel_backend
-from skopt.space import Real, Integer
-import requests
-import numpy as np
-from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.model_selection import GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.metrics import mean_squared_error
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, RationalQuadratic, ConstantKernel as C
-from scipy.interpolate import interp1d
-import numpy as np
-import json
-import os
-import sys
-from bs4 import BeautifulSoup
-from sklearn.preprocessing import StandardScaler
-from joblib import Parallel, delayed
-
-
-os.environ['PYTHONUNBUFFERED'] = '1'
-sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
-sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
-
-# 常量
-URL_TEMPLATE = "https://statementdog.com/api/v2/fundamentals/{stock_code}/2014/2024/cf?qbu=true&qf=analysis"
-NUM_DATA_POINTS = 80  # 控制要使用的數據點數量
-FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文件數據
-
-# 定義請求頭
-HEADERS = {
-    "accept": "application/json, text/plain, */*",
-    "accept-language": "zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6",
-    "cache-control": "no-cache",
-    "cookie": "statementdog_device_id=aVNiSlJJNXpJL0prMk1ybitSenFyZVY1MkdROFh0SzVIeHMzSGc0MmF4VmM1V3d1dVJya2h0c1dUQWUrOXdOci0tTUN3aXlSTGhsQ0ptVHJrUmRTUlRTUT09--cb40a658096ab1ae069e0e788ee96fad6c769d54; easy_ab=88e3e53f-9979-4305-8ee6-01dce716965f; _ga=GA1.1.1382045611.1724032914; upgrade_browser=1; g_state={\"i_l\":0}; g_csrf_token=37de11532f4b258c; AMP_0ab77a441f=JTdCJTIyZGV2aWNlSWQlMjIlM0ElMjI1NmIwZWMyYS1kYTJmLTRkMjgtYmY3My0xZDZkN2ZiNjNlZjclMjIlMkMlMjJ1c2VySWQlMjIlM0EyMjA2OCUyQyUyMnNlc3Npb25JZCUyMiUzQTE3MjQwMzgyNTg1ODQlMkMlMjJvcHRPdXQlMjIlM0FmYWxzZSUyQyUyMmxhc3RFdmVudFRpbWUlMjIlM0ExNzI0MDM4MjgzNzQ2JTJDJTIybGFzdEV2ZW50SWQlMjIlM0E2MSUyQyUyMnBhZ2VDb3VudGVyJTIyJTNBMCU3RA==; _ga_K9Y9Y589MM=GS1.1.1724038235.2.1.1724038302.60.0.0; search_stock_referer=https%3A%2F%2Fstatementdog.com%2Fportfolios; _statementdog_session_v2=vtMAdvQujtMr%2BsggeSeES5%2BEwDxq8RDQy%2F4qBSPd%2Fx%2FCtC6vEuYzA0LDupGh2EC7qzlojtrdZp8I2ZxG%2BIRqJNaqZxCdMfbLRngFaE2uZ9NchVpO2Sdm2wabpfZFYn3rlo5q%2FJvRSqmt%2BXRv9vJ2Ov7nRBDlykVSpgolWMud491J8G8T3M3n4R5BgPKiZvNoeYO5Cr1TsXnVU9oA9hZ8a8vK4vfSOvdfSzZ2oB%2BxsASFiu0CLvFUkCWBpcYmhjXYCmYK11kjZiuTDIiBGBGuh%2FYYxTjviOMZWLzrVtAPQUPB%2Bx%2BV4jScRVx0RcCeUz44iWSYHB6oGN%2B41cm57hcLV%2FvOxYtqU81KZuq9sPQ0P9yo9DM5%2Fr%2BQyOPfi9hvCdNMQfW5MN4DjYYEV4riosl%2BqSY4sD%2F2A5gIo3%2BwLTXS8JGeQhGVkWHnjjXVype8uTltaUVMPB9wXPAizte8KGwcSHLwl2FaMCOBWxfE1FDQE7%2Fel%2BbaSX9uHJbx%2BMdEW3L71QWHVxyk0sMwgtIxfeRPYwJI77Cmj8OooJL4okUH9DYPuBp3LzC8qrYmla0%2Fz3gIOss%3D--UM7YcRCc%2F1IlStw2--ZEGRU3Mm0aZXH63JnVzfYQ%3D%3D",
-    "pragma": "no-cache",
-    "referer": "https://statementdog.com/analysis/2002/monthly-revenue-growth-rate",
-    "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": "\"Windows\"",
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-    "x-csrf-token": "m5_fWNYl2lS5m4iIczHtKCm2wHDZI9S9mTlVt1l3aTjb3mg9DK9yfbtypwyRp60MEKT4KWzyuSq1r__ShI-Ddw"
-}
-
-
-def getLatestPrice():
-    """從網頁獲取最新的股價"""
-    headers = {
-        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'accept-language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7,zh-CN;q=0.6',
-        'cache-control': 'no-cache',
-        'cookie': 'fastivalName_Mall_20240402=closeday_fastivalName_Mall_20240402; bottomADName_20240402=closeday_bottomADName_20240402; _ga=GA1.2.1346814139.1722849008; _gcl_au=1.1.1681944876.1722849008; ASP.NET_SessionId=f4y0yefm0uhzdi550rgceb0k; _gid=GA1.2.929478691.1724133370; fastivalName_Mall_20240402=closeday_fastivalName_Mall_20240402; bottomADName_20240402=closeday_bottomADName_20240402; __gsas=ID=31ddb8e553c103a7:T=1724133412:RT=1724133412:S=ALNI_MYByiOJC8zDAXukb3TM5gPJMU1pXg; _ga_S0YRRCXLNT=GS1.2.1724145464.3.1.1724145535.60.0.0',
-        'pragma': 'no-cache',
-        'priority': 'u=0, i',
-        'referer': 'https://histock.tw/stock/rank.aspx?m=0&d=1&p=all',
-        'sec-ch-ua': '"Not)A;Brand";v="99", "Google Chrome";v="127", "Chromium";v="127"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'sec-fetch-dest': 'document',
-        'sec-fetch-mode': 'navigate',
-        'sec-fetch-site': 'same-origin',
-        'sec-fetch-user': '?1',
-        'upgrade-insecure-requests': '1',
-        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36',
-    }
-    url = 'https://histock.tw/stock/rank.aspx?m=0&d=0&p=all'
-    response = requests.get(url, headers=headers)
-    html = response.text
-
-    soup = BeautifulSoup(html, 'html.parser')
-
-    stocks = []
-    for row in soup.select('tr'):
-        stock_link = row.select_one('a[href^="/stock/"]')
-        if stock_link:
-            stock_code = stock_link['href'].split('/')[2]
-            stock_name = stock_link.text.strip()
-
-            price_span = row.select_one('span[id^="CPHB1_gv_lbDeal_"]')
-            if price_span:
-                price_text = price_span.text.strip()
-                try:
-                    price = float(price_text.replace(',', ''))
-                except ValueError:
-                    continue
-
-                stocks.append({
-                    'stock_name': stock_name,
-                    'stock_code': stock_code,
-                    'price': price
-                })
-
-    output_dir = 'stockData'
-    os.makedirs(output_dir, exist_ok=True)
-
-    output_file = os.path.join(output_dir, 'latest_price.json')
-    with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(stocks, f, ensure_ascii=False, indent=4)
-
-    print(f"數據已保存到 {output_file}")
-
-
-def parse_float(value):
-    """將值解析為浮點數"""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-def interpolate_quarterly_to_monthly(quarterly_data, num_months):
-    """将季度数据插值到每月数据"""
-    if len(quarterly_data) < 2:
-        return [None] * num_months
-
-    # 创建季度时间轴
-    quarterly_indices = np.arange(len(quarterly_data)) * 3
-    # 创建对应的月度时间轴
-    monthly_indices = np.arange(num_months)
-
-    # 插值函数
-    interp_func = interp1d(quarterly_indices, quarterly_data, kind='linear', fill_value='extrapolate')
-    return interp_func(monthly_indices)
-
-def pad_list(data, length, pad_value=0.0):
-    """填充列表到指定长度"""
-    # 过滤掉 None 值
-    filtered_data = [x for x in data if x is not None]
-    if len(filtered_data) < length:
-        # 使用默认值填充不足部分
-        return filtered_data + [pad_value] * (length - len(filtered_data))
-    return filtered_data
-
-def pad_data(data, length):
-    """将数据填充到指定长度"""
-    if len(data) < length:
-        return data + [None] * (length - len(data))
-    return data[:length]
-
-import os
-import json
-import numpy as np
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RationalQuadratic
-from sklearn.metrics import mean_squared_error
-from joblib import Parallel, delayed
 
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RationalQuadratic
-from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import BayesianRidge
+from sklearn.metrics import mean_squared_error
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
+
+from sklearn.linear_model import BayesianRidge
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import mean_squared_error
-from joblib import Parallel, delayed
+MODEL='test'
 
-
-def parse_float(value):
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
-def pad_list(data, length):
-    """将列表填充到指定长度"""
-    return (data + [None] * length)[-length:]
-
-import os
-import json
-import numpy as np
-
-def parse_float(value):
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
-def pad_list(data_list, max_length):
-    return (data_list[-max_length:] if len(data_list) > max_length else
-            [None] * (max_length - len(data_list)) + data_list)
-
-def fetch_stock_data(stock_code):
-    """从本地文件获取股票数据"""
-    file_path = f'stockData/{stock_code}.json'
-
-    if not os.path.exists(file_path):
-        raise ValueError(f"文件 {file_path} 不存在。请确保文件路径和股票代码正确。")
-
-    with open(file_path, 'r', encoding='utf-8') as file:
-        data = json.load(file)
-
-    monthly_data = data.get("monthly", {})
-    quarterly_data = data.get("quarterly", {})
-
-    # 读取原始数据
-    PB = [parse_float(item[1]) for item in monthly_data.get("PB", {}).get("data", []) if
-          parse_float(item[1]) is not None]
-    revenue_per_share = [parse_float(item[1]) for item in monthly_data.get("RevenuePerShare", {}).get("data", []) if
-                         parse_float(item[1]) is not None]
-    revenue_per_share_yoy = [parse_float(item[1]) for item in monthly_data.get("RevenuePerShareYOY", {}).get("data", [])
-                             if parse_float(item[1]) is not None]
-    price_data = [parse_float(item[1]) for item in monthly_data.get("Price", {}).get("data", []) if
-                  parse_float(item[1]) is not None]
-
-    # 获取其他数据
-    revenue_t3m_avg = [parse_float(item[1]) for item in monthly_data.get("RevenueT3MAvg", {}).get("data", []) if
-                       parse_float(item[1]) is not None]
-    revenue_t3m_yoy = [parse_float(item[1]) for item in monthly_data.get("RevenueT3MYOY", {}).get("data", []) if
-                       parse_float(item[1]) is not None]
-    majority_shareholders_share_ratio = [parse_float(item[1]) for item in
-                                         monthly_data.get("MajorityShareholdersShareRatio", {}).get("data", []) if
-                                         parse_float(item[1]) is not None]
-    total_shareholders_count = [parse_float(item[1]) for item in
-                                monthly_data.get("TotalShareholdersCount", {}).get("data", []) if
-                                parse_float(item[1]) is not None]
-
-    # 获取最新股价
-    price_file_path = os.path.join('stockData', 'latest_price.json')
-    with open(price_file_path, 'r', encoding='utf-8') as file:
-        latest_price_data = json.load(file)
-
-    latest_close_price = next(
-        (item['price'] for item in latest_price_data if item['stock_code'] == stock_code),
-        None
-    )
-
-    if latest_close_price is None:
-        raise ValueError(f"Stock code {stock_code} not found in latest_price.json")
-
-    # 确定最大长度
-    max_length = min(NUM_DATA_POINTS, len(price_data))
-
-    # 从最后开始提取最大长度的数据
-    PB = PB[-max_length:]
-    revenue_per_share = revenue_per_share[-max_length:]
-    revenue_per_share_yoy = revenue_per_share_yoy[-max_length:]
-    price_data = price_data[-max_length:]
-    revenue_t3m_avg = revenue_t3m_avg[-max_length:]
-    revenue_t3m_yoy = revenue_t3m_yoy[-max_length:]
-    majority_shareholders_share_ratio = majority_shareholders_share_ratio[-max_length:]
-    total_shareholders_count = total_shareholders_count[-max_length:]
-
-    # 填充不足的部分
-    PB = pad_list(PB, max_length)
-    revenue_per_share = pad_list(revenue_per_share, max_length)
-    revenue_per_share_yoy = pad_list(revenue_per_share_yoy, max_length)
-    price_data = pad_list(price_data, max_length)
-    revenue_t3m_avg = pad_list(revenue_t3m_avg, max_length)
-    revenue_t3m_yoy = pad_list(revenue_t3m_yoy, max_length)
-    majority_shareholders_share_ratio = pad_list(majority_shareholders_share_ratio, max_length)
-    total_shareholders_count = pad_list(total_shareholders_count, max_length)
-
-
-    return (revenue_per_share_yoy,
-            price_data,
-            revenue_per_share,
-            PB,
-            revenue_t3m_avg,
-            revenue_t3m_yoy,
-            majority_shareholders_share_ratio,
-            total_shareholders_count,
-            latest_close_price)
+def normalize_and_standardize_data(data):
+    """对数据进行标准化和归一化"""
+    scaler = StandardScaler()  # 标准化
+    data_standardized = scaler.fit_transform(data)
+    scaler_min_max = MinMaxScaler()  # 归一化
+    data_normalized = scaler_min_max.fit_transform(data_standardized)
+    return data_normalized, scaler_min_max
 
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
-                  latest_close_price):
+                  epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price):
     """分析股票数据"""
+
+    # 提取 revenue_t3m_yoy, epst4q 的符号信息
+    revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
+    epst4q_velocity = calculate_sign_changes(epst4q)
 
     # 创建有效数据列表
     valid_data = [
-        (yoy, price, revenue, pb, t3m_avg, t3m_yoy, majority, total_share_count)
-        for
-        yoy, price, revenue, pb, t3m_avg, t3m_yoy, majority, total_share_count
-        in zip(
-            revenue_per_share_yoy, price_data, revenue_per_share, PB,
-            revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count
-        )
-        if None not in (
-            yoy, price, revenue, pb, t3m_avg, t3m_yoy, majority, total_share_count
-        )
+        (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
+         majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, volume_ratio_value, sign)
+        for revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
+        majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, volume_ratio_value, sign in
+        zip(revenue_per_share, revenue_per_share_yoy, revenue_t3m_yoy, price_data, epst4q, epst4q_velocity,
+            majority_shareholders_share_ratio, revenue_t3m_avg, PB, volume_m, volume_ratio, revenue_t3m_yoy_sign)
+        if None not in (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value,
+                        epst4q_velocity_value, majority_shareholders_value, revenue_t3m_avg_value, pb_value,
+                        volume_value, volume_ratio_value, sign)
+           and not (np.isnan(revenue_per_share_value) or np.isnan(revenue_per_share_yoy_value) or np.isnan(revenue)
+                    or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value)
+                    or np.isnan(majority_shareholders_value) or np.isnan(revenue_t3m_avg_value)
+                    or np.isnan(pb_value) or np.isnan(volume_value) or np.isnan(volume_ratio_value))
     ]
 
     if not valid_data:
         return None
 
     # 解包有效数据
-    valid_yoy_values, valid_price_data, valid_revenue_per_share, valid_PB, valid_t3m_avg, valid_t3m_yoy, valid_majority, valid_total_share_count = zip(
+    vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, \
+        valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_volume, valid_vr_value, valid_sign = zip(
         *valid_data)
 
-    # 检查特征数量
-    if len(valid_yoy_values) == 0:
-        return None
+    # 对数据进行样条插值
+    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
+    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy))
+    interpolated_revenue = spline_interpolation(np.array(valid_revenue))
+    interpolated_price = spline_interpolation(np.array(valid_price))
+    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
+    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity))
+    interpolated_majority_shareholders = spline_interpolation(np.array(valid_majority_shareholders))
+    interpolated_revenue_t3m_avg = spline_interpolation(np.array(valid_revenue_t3m_avg))
+    interpolated_pb = spline_interpolation(np.array(valid_pb))
+    interpolated_volume = spline_interpolation(np.array(valid_volume))
+    interpolated_vr_value = spline_interpolation(np.array(valid_vr_value))
+    interpolated_sign = np.array(valid_sign)
 
-    X = np.column_stack((
-        valid_yoy_values,
-        valid_revenue_per_share,
-        valid_PB,
-        valid_t3m_avg,
-        valid_t3m_yoy,
-        valid_majority,
-        valid_total_share_count
+    # 准备时间序列数据
+    revenue_per_share_series = interpolated_revenue_per_share.reshape(-1, 1)
+    revenue_per_share_yoy_series = interpolated_revenue_per_share_yoy.reshape(-1, 1)
+    price_series = interpolated_price.reshape(-1, 1)
+    revenue_series = interpolated_revenue.reshape(-1, 1)
+    epst4q_series = interpolated_epst4q.reshape(-1, 1)
+    epst4q_velocity_series = interpolated_epst4q_velocity.reshape(-1, 1)
+    majority_shareholders_series = interpolated_majority_shareholders.reshape(-1, 1)
+    revenue_t3m_avg_series = interpolated_revenue_t3m_avg.reshape(-1, 1)
+    pb_series = interpolated_pb.reshape(-1, 1)
+    volume_series = interpolated_volume.reshape(-1, 1)
+    vr_series = interpolated_vr_value.reshape(-1, 1)
+    sign_series = interpolated_sign.reshape(-1, 1)
+
+    # 正规化与归一化数据
+    revenue_per_share_normalized, scaler_X1 = normalize_and_standardize_data(revenue_per_share_series)
+    revenue_per_share_yoy_normalized, scaler_X2 = normalize_and_standardize_data(revenue_per_share_yoy_series)
+    revenue_normalized, scaler_X3 = normalize_and_standardize_data(revenue_series)
+    epst4q_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_series)
+    epst4q_velocity_normalized, scaler_X5 = normalize_and_standardize_data(epst4q_velocity_series)
+    majority_shareholders_normalized, scaler_X6 = normalize_and_standardize_data(majority_shareholders_series)
+    revenue_t3m_avg_normalized, scaler_X7 = normalize_and_standardize_data(revenue_t3m_avg_series)
+    pb_normalized, scaler_X8 = normalize_and_standardize_data(pb_series)
+    volume_normalized, scaler_X9 = normalize_and_standardize_data(volume_series)
+    vr_normalized, scaler_X10 = normalize_and_standardize_data(vr_series)
+    sign_normalized, scaler_X11 = normalize_and_standardize_data(sign_series)
+    price_normalized, scaler_y = normalize_and_standardize_data(price_series)
+
+    # 合并数据
+    X_combined = np.hstack((
+        # revenue_per_share_normalized.reshape(-1, 1),
+        # revenue_per_share_yoy_normalized.reshape(-1, 1),
+        # revenue_normalized.reshape(-1, 1),
+         epst4q_normalized.reshape(-1, 1),
+        # epst4q_velocity_normalized.reshape(-1, 1),
+        # majority_shareholders_normalized.reshape(-1, 1),
+         revenue_t3m_avg_normalized.reshape(-1, 1),
+        # pb_normalized.reshape(-1, 1),
+        # volume_normalized.reshape(-1, 1),
+         vr_normalized.reshape(-1, 1),
+        # sign_normalized.reshape(-1, 1)
     ))
 
-    y = np.array(valid_price_data)
-
-    # 标准化数据
-    scaler_X = StandardScaler()
-    X_scaled = scaler_X.fit_transform(X)
-
-    scaler_y = StandardScaler()
-    y_scaled = scaler_y.fit_transform(y.reshape(-1, 1)).ravel()
-
     # 划分训练集和测试集
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y_scaled, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2,
+                                                        random_state=42)
 
-    # 定义目标函数
-    def objective(length_scale, alpha):
-        kernel = RationalQuadratic(length_scale=length_scale, alpha=alpha)
-        gp = GaussianProcessRegressor(kernel=kernel, optimizer=None)
-        gp.fit(X_train, y_train)
-        y_pred = gp.predict(X_test)
-        return mean_squared_error(y_test, y_pred)
-
-    # 定义超参数搜索空间
-    length_scale_values = np.logspace(-2, 2, num=10)  # 1e-2 到 1e2 的范围
-    alpha_values = np.logspace(-1, 5, num=10)  # 1e-1 到 1e5 的范围
-
-    # 使用 joblib 进行并行计算
-    def parallel_objective(params):
-        length_scale, alpha = params
-        return objective(length_scale, alpha)
-
-    param_grid = [(length_scale, alpha) for length_scale in length_scale_values for alpha in alpha_values]
-    results = Parallel(n_jobs=-1)(delayed(parallel_objective)(params) for params in param_grid)
-
-    # 找到最佳参数
-    best_index = np.argmin(results)
-    best_length_scale, best_alpha = param_grid[best_index]
-
-    # 使用最佳参数训练最终模型
-    best_kernel = RationalQuadratic(length_scale=best_length_scale, alpha=best_alpha)
-    gp_final = GaussianProcessRegressor(kernel=best_kernel, optimizer=None)
-    gp_final.fit(X_train, y_train)
+    # 使用贝叶斯回归模型
+    bayesian_ridge = make_pipeline(PolynomialFeatures(degree=1), BayesianRidge())
+    bayesian_ridge.fit(X_train, y_train)
 
     # 预测和评估
-    y_pred_final = gp_final.predict(X_test)
+    y_pred_final = bayesian_ridge.predict(X_test)
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
-    current_features = scaler_X.transform([[valid_yoy_values[-1], valid_revenue_per_share[-1], valid_PB[-1],
-                                            valid_t3m_avg[-1], valid_t3m_yoy[-1], valid_majority[-1],
-                                            valid_total_share_count[-1]]])
-    estimated_price_scaled = gp_final.predict(current_features)
+    #current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1],
+    #                             epst4q_velocity[-1], majority_shareholders_share_ratio[-1], revenue_t3m_avg[-1],
+    #                             PB[-1], volume_m[-1], volume_ratio[-1], revenue_t3m_yoy_sign[-1]]])
+    # 使用最新数据进行预测
+    current_feature = np.array([[revenue_per_share[-1],revenue_t3m_yoy[-1],epst4q[-1],revenue_t3m_avg[-1],
+                                 volume_ratio[-1]]])
+
+    current_feature_scaled = np.hstack((
+        # scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
+        # scaler_X2.transform(current_feature[:, 1].reshape(-1, 1)),
+        # scaler_X3.transform(current_feature[:, 2].reshape(-1, 1)),
+         scaler_X4.transform(current_feature[:, 0].reshape(-1, 1)),
+        # scaler_X5.transform(current_feature[:, 4].reshape(-1, 1)),
+        # scaler_X6.transform(current_feature[:, 5].reshape(-1, 1)),
+         scaler_X7.transform(current_feature[:, 1].reshape(-1, 1)),
+        # scaler_X8.transform(current_feature[:, 7].reshape(-1, 1)),
+        # scaler_X9.transform(current_feature[:, 8].reshape(-1, 1)),
+         scaler_X10.transform(current_feature[:, 2].reshape(-1, 1)),
+        # scaler_X11.transform(current_feature[:, 10].reshape(-1, 1))
+    ))
+    estimated_price_scaled = bayesian_ridge.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
 
     # 计算价格差异
     price_difference = estimated_price - latest_close_price
     price_diff_percentage = price_difference / latest_close_price * 100
 
-    if abs(price_diff_percentage) > 30:
-        color = 'darkred' if latest_close_price > estimated_price else 'lightseagreen'
-        action = '强力卖出' if latest_close_price > estimated_price else '强力买入'
-    elif 15 <= abs(price_diff_percentage) <= 30:
-        color = 'red' if latest_close_price > estimated_price else 'green'
-        action = '卖出' if latest_close_price > estimated_price else '买入'
+    # 根据价格差异和 EPST4Q 的值确定颜色和操作
+    if price_diff_percentage > 50:
+        color = 'lightseagreen'
+        action = '强力买入'
+    elif price_diff_percentage < -50:
+        color = 'darkred'
+        action = '强力卖出'
+    elif 20 <= price_diff_percentage <= 50:
+        color = 'green'
+        action = '买入'
+    elif -50 <= price_diff_percentage <= -20:
+        color = 'red'
+        action = '卖出'
     else:
         color = 'black'
         action = ''
 
-    return (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
-            f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} MSE: {final_mse:.2f} </span><br>')
+    # Predict full data set for plotting
+    combined_features_all = np.hstack((
+        # revenue_per_share_normalized.reshape(-1, 1),
+        # revenue_per_share_yoy_normalized.reshape(-1, 1),
+        # revenue_normalized.reshape(-1, 1),
+         epst4q_normalized.reshape(-1, 1),
+        # epst4q_velocity_normalized.reshape(-1, 1),
+        # majority_shareholders_normalized.reshape(-1, 1),
+         revenue_t3m_avg_normalized.reshape(-1, 1),
+        # pb_normalized.reshape(-1, 1),
+        # volume_normalized.reshape(-1, 1),
+         vr_normalized.reshape(-1, 1),
+        # sign_normalized.reshape(-1, 1)
+    ))
 
+    predicted_price = bayesian_ridge.predict(combined_features_all)
+    predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
 
+    # 绘图
+    # Plot and save the results
+    plot_stock_analysis(MODEL, stock_name, stock_code, interpolated_price, predicted_price, False)
+
+    # 返回结果信息
+    result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
+                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
+                      f'MSE: {final_mse:.2f} </span><br>')
+
+    return result_message
 
 def main():
-    with open('stockList.txt', 'r', encoding='utf-8') as file:
-        lines = file.readlines()
+    NUM_DATA_POINTS = 120  # 控制要使用的数据点数量
+    FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
+    results = []  # 收集结果以便于同时写入文件和屏幕显示
+
+    if FETCH_LATEST_CLOSE_PRICE_ONLINE:
+        getLatestPrice()
+
+    # 确保输出目录存在
+    if not os.path.exists(f'docs/{MODEL}'):
+        os.makedirs(f'docs/{MODEL}')
+
+    with open('stockList.txt', 'r', encoding='utf-8') as file_list:
+        lines = file_list.readlines()
 
     for line in lines:
         parts = line.strip().split(' ')
@@ -393,22 +226,39 @@ def main():
         try:
             (revenue_per_share_yoy, price_data, revenue_per_share, PB,
              revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
-             total_shareholders_count, latest_close_price) = fetch_stock_data(stock_code)
+             total_shareholders_count, epst4q ,volume_m , volume_m_avg ,volume_ratio ,latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
+
 
             result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
                                    revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
-                                   majority_shareholders_share_ratio, total_shareholders_count,
+                                   majority_shareholders_share_ratio, total_shareholders_count,epst4q, volume_m,
+                                   volume_m_avg, volume_ratio,
                                    latest_close_price)
+
             if result:
                 print(result)
+                results.append(result)
+
         except ValueError as e:
-            print(f"Error processing stock {stock_code}: {e}")
+            error_message = f"<p>处理股票 {stock_code} 时出错: {e}</p>"
+            # 收集错误信息
+            results.append(error_message)
+
+    # 写入 HTML 文件
+    with open(f'docs/{MODEL}/index.html', 'w', encoding='utf-8') as file:
+        file.write('<html><head><title>股票分析结果</title></head><body>\n')
+        file.write('<h1>股票分析结果</h1>\n')
+        for result in results:
+            file.write(result)
+        file.write('</body></html>\n')
+
 
     # 打印实际使用的数据点数量
     if 'price_data' in locals():
         num_data_points_used = len(price_data)
         print(f"本次使用了 {num_data_points_used} 个数据点分析")
 
+from stockPublicFunction import *
 
 if __name__ == "__main__":
     main()

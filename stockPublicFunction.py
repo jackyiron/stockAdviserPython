@@ -26,7 +26,7 @@ import json
 import numpy as np
 import random
 import pandas as pd
-
+import matplotlib.ticker as ticker
 font_path = 'msyh.ttc'
 
 from matplotlib.font_manager import FontProperties
@@ -463,7 +463,6 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     """Plot actual vs. predicted stock prices and save the plot as an image file."""
 
     plt.figure(figsize=(10, 6))
-
     # Plot actual stock price
     plt.plot(aligned_price, label='实际股价', color='blue')
 
@@ -491,7 +490,7 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     plt.close()
 
 
-def calculate_volume_ratio(NUM_DATA_POINTS,stock_code ):
+def calculate_volume_ratio(num , stock_code ,length=25):
     # 文件路径
     file_path = f'stockData/{stock_code}_m_vol.json'
 
@@ -500,30 +499,51 @@ def calculate_volume_ratio(NUM_DATA_POINTS,stock_code ):
         json_data = json.load(file)
 
     # 提取数据
-    prices_high = []
-    prices_low = []
-    prices_avg = []
+    prices_close = []
     volumes = []
 
-
     for entry in json_data['data']:
-        high = float(entry[2])
-        low = float(entry[3])
-        avg = float(entry[4])
+        close = float(entry[4])  # 假设收盘价在第 4列
         volume = int(entry[-2].replace(',', ''))  # 移除逗号并转换为整数
 
-        prices_high.append(high)
-        prices_low.append(low)
-        prices_avg.append(avg)
+        prices_close.append(close)
         volumes.append(volume)
 
-    # 计算 Volume Ratio (VR)
-    VR_values = []
-    for i in range(1, len(volumes)):
-        volume_ratio = volumes[i] / volumes[i - 1] if volumes[i - 1] != 0 else None
-        VR_values.append(volume_ratio)
+    # 计算价格变化
+    price_changes = np.diff(prices_close)
+    weighted_volumes = []
 
-    return(volumes, VR_values)
+    # 计算加权成交量
+    for i in range(len(price_changes)):
+        if price_changes[i] > 0:
+            weighted_volumes.append(volumes[i + 1])
+        elif price_changes[i] == 0:
+            weighted_volumes.append(volumes[i + 1] / 2)
+        else:
+            weighted_volumes.append(0)
+
+    # 计算 VR 值
+    VR_values = []
+
+    if len(weighted_volumes) < length:
+        return [], []
+
+    for i in range(length - 1, len(weighted_volumes)):
+        # 计算加权成交量总和
+        weighted_volume_sum = sum(weighted_volumes[i - length + 1:i + 1])
+        # 计算总成交量总和
+        total_volume_sum = sum(volumes[i - length + 1:i + 1])
+
+        if total_volume_sum > 0:
+            vr_value = 100 * weighted_volume_sum / total_volume_sum
+        else:
+            vr_value = 0
+
+        VR_values.append(vr_value)
+
+    return volumes, VR_values
+
+
 
 def print_lengths(*args):
     """打印每个参数的长度"""
