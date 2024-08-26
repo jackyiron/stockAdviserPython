@@ -16,34 +16,43 @@ MODEL='bayes'
 
 def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
-                  epst4q, volume_m, volume_m_avg, latest_close_price):
+                  epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price):
     """分析股票数据"""
+
+    #print_lengths(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
+     #             PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
+     #             epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price)
+
     # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
     epst4q_velocity = calculate_sign_changes(epst4q)
 
+
+
     # 创建有效数据列表
     valid_data = [
         (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
-         majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, sign)
+         majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, volume_ratio_value, sign)
         for revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value, epst4q_velocity_value,
-            majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, sign in
+            majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, volume_ratio_value, sign in
         zip(revenue_per_share, revenue_per_share_yoy, revenue_t3m_yoy, price_data, epst4q, epst4q_velocity,
-            majority_shareholders_share_ratio, revenue_t3m_avg, PB, volume_m_avg, revenue_t3m_yoy_sign)
+            majority_shareholders_share_ratio, revenue_t3m_avg, PB, volume_m, volume_ratio, revenue_t3m_yoy_sign)
         if None not in (revenue_per_share_value, revenue_per_share_yoy_value, revenue, price, epst4q_value,
-                        epst4q_velocity_value, majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, sign)
+                        epst4q_velocity_value, majority_shareholders_value, revenue_t3m_avg_value, pb_value, volume_value, volume_ratio_value, sign)
         and not (np.isnan(revenue_per_share_value) or np.isnan(revenue_per_share_yoy_value) or np.isnan(revenue)
                  or np.isnan(price) or np.isnan(epst4q_value) or np.isnan(epst4q_velocity_value)
                  or np.isnan(majority_shareholders_value) or np.isnan(revenue_t3m_avg_value)
-                 or np.isnan(pb_value) or np.isnan(volume_value))
+                 or np.isnan(pb_value) or np.isnan(volume_value) or np.isnan(volume_ratio_value))
     ]
 
     if not valid_data:
         return None
 
+
     # 解包有效数据
     vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, \
-    valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_volume, valid_sign = zip(*valid_data)
+    valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_volume, valid_vr_value, valid_sign = zip(*valid_data)
+
 
     # 对数据进行样条插值
     interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
@@ -56,7 +65,10 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     interpolated_revenue_t3m_avg = spline_interpolation(np.array(valid_revenue_t3m_avg))
     interpolated_pb = spline_interpolation(np.array(valid_pb))
     interpolated_volume = spline_interpolation(np.array(valid_volume))
-    interpolated_sign = spline_interpolation(np.array(valid_sign))
+    interpolated_vr_value = spline_interpolation(np.array(valid_vr_value))
+    interpolated_sign = np.array(valid_sign)
+
+
 
     # 准备时间序列数据
     revenue_per_share_series = interpolated_revenue_per_share.reshape(-1, 1)
@@ -69,7 +81,9 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     revenue_t3m_avg_series = interpolated_revenue_t3m_avg.reshape(-1, 1)
     pb_series = interpolated_pb.reshape(-1, 1)
     volume_series = interpolated_volume.reshape(-1, 1)
+    vr_series = interpolated_vr_value.reshape(-1, 1)
     sign_series = interpolated_sign.reshape(-1, 1)
+
 
     # 正规化与归一化数据
     revenue_per_share_normalized, scaler_X1 = normalize_and_standardize_data(revenue_per_share_series)
@@ -81,8 +95,10 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     revenue_t3m_avg_normalized, scaler_X7 = normalize_and_standardize_data(revenue_t3m_avg_series)
     pb_normalized, scaler_X8 = normalize_and_standardize_data(pb_series)
     volume_normalized, scaler_X9 = normalize_and_standardize_data(volume_series)
-    sign_normalized, scaler_X10 = normalize_and_standardize_data(sign_series)
+    vr_normalized, scaler_X10 = normalize_and_standardize_data(vr_series)
+    sign_normalized, scaler_X11 = normalize_and_standardize_data(sign_series)
     price_normalized, scaler_y = normalize_and_standardize_data(price_series)
+
 
     # 合并数据
     X_combined = np.hstack((
@@ -95,6 +111,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         revenue_t3m_avg_normalized.reshape(-1, 1),
         pb_normalized.reshape(-1, 1),
         volume_normalized.reshape(-1, 1),
+        vr_normalized.reshape(-1, 1),
         sign_normalized.reshape(-1, 1)
     ))
 
@@ -112,7 +129,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # 使用最新数据进行预测
     current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1],
-                                 epst4q_velocity[-1], majority_shareholders_share_ratio[-1], revenue_t3m_avg[-1], PB[-1], volume_m[-1], revenue_t3m_yoy_sign[-1]]])
+                                 epst4q_velocity[-1], majority_shareholders_share_ratio[-1], revenue_t3m_avg[-1], PB[-1], volume_m[-1], volume_ratio[-1], revenue_t3m_yoy_sign[-1]]])
     current_feature_scaled = np.hstack((
         scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
         scaler_X2.transform(current_feature[:, 1].reshape(-1, 1)),
@@ -123,7 +140,8 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         scaler_X7.transform(current_feature[:, 6].reshape(-1, 1)),
         scaler_X8.transform(current_feature[:, 7].reshape(-1, 1)),
         scaler_X9.transform(current_feature[:, 8].reshape(-1, 1)),
-        scaler_X10.transform(current_feature[:, 9].reshape(-1, 1))
+        scaler_X10.transform(current_feature[:, 9].reshape(-1, 1)),
+        scaler_X11.transform(current_feature[:, 9].reshape(-1, 1))
     ))
     estimated_price_scaled = bayesian_ridge.predict(current_feature_scaled)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
@@ -160,6 +178,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         revenue_t3m_avg_normalized.reshape(-1, 1),
         pb_normalized.reshape(-1, 1),
         volume_normalized.reshape(-1, 1),
+        vr_normalized.reshape(-1, 1),
         sign_normalized.reshape(-1, 1)
     ))
 
@@ -179,7 +198,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
 
 def main():
-    NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
+    NUM_DATA_POINTS = 120  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
@@ -205,11 +224,13 @@ def main():
         try:
             (revenue_per_share_yoy, price_data, revenue_per_share, PB,
              revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
-             total_shareholders_count, epst4q ,volume_m , volume_m_avg ,latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
+             total_shareholders_count, epst4q ,volume_m , volume_m_avg ,volume_ratio ,latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
+
 
             result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
                                    revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
-                                   majority_shareholders_share_ratio, total_shareholders_count,epst4q, volume_m, volume_m_avg,
+                                   majority_shareholders_share_ratio, total_shareholders_count,epst4q, volume_m,
+                                   volume_m_avg, volume_ratio,
                                    latest_close_price)
 
             if result:

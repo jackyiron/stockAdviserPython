@@ -22,6 +22,11 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 from scipy.interpolate import CubicSpline
 import matplotlib as mpl
+import json
+import numpy as np
+import random
+import pandas as pd
+
 font_path = 'msyh.ttc'
 
 from matplotlib.font_manager import FontProperties
@@ -58,21 +63,14 @@ HEADERS = {
 def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code):
     """从本地文件获取股票数据"""
     file_path = f'stockData/{stock_code}.json'
-#    volume_path= f'stockData/{stock_code}_m_vol.json'
 
     if not os.path.exists(file_path) :
         raise ValueError(f"文件 {file_path} 不存在。请确保文件路径和股票代码正确。")
 
-#    if not os.path.exists(volume_path) :
-#        raise ValueError(f"文件 {volume_path} 不存在。请确保文件路径和股票代码正确。")
-
-
     with open(file_path, 'r', encoding='utf-8') as file:
         data = json.load(file)
 
-#    with open(volume_path, 'r', encoding='utf-8') as file:
-#        volume_data = json.load(file)
-
+    m_volume_data , volume_ratio = calculate_volume_ratio(NUM_DATA_POINTS , stock_code)
 
     monthly_data = data.get("monthly", {})
     quarterly_data = data.get("quarterly", {})
@@ -85,14 +83,10 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
 
     #季度數據
     epst4q = extract_data_quarterly("EPST4Q")
-    epst4q_velocity = calculate_sign_changes(epst4q)
+    # print(epst4q)
+    epst4q_interpolated , epst4q_interpolated_last = interpolate_quarterly_to_monthly(epst4q, NUM_DATA_POINTS)
 
-    # 计算每个月的 EPS 與 velocity
-    epst4q_interpolated = []
-    for eps in epst4q:
-        epst4q_interpolated.extend([eps / 3] * 3)  # 每个季度的 EPS 平均分配到三个月
-
-    #get_volume_3m_avf
+    #get_volume_3m_avg
     volume_m = m_volume_data[-NUM_DATA_POINTS:]
     extended_volume_data  = m_volume_data[-NUM_DATA_POINTS-2:]
     # 将数据转换为 pandas 的 DataFrame
@@ -101,9 +95,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     df['3_m_MA'] = df['volume'].rolling(window=3, min_periods=3).mean()
     # 移除前两个 NaN 值
     volume_m_avg = df['3_m_MA'].dropna().values.tolist()
-
-    
-
+    volume_ratio = volume_ratio[-NUM_DATA_POINTS:]
 
     PB = extract_data("PB")
     revenue_per_share = extract_data("RevenuePerShare")
@@ -118,6 +110,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     price_file_path = os.path.join('stockData', 'latest_price.json')
     with open(price_file_path, 'r', encoding='utf-8') as file:
         latest_price_data = json.load(file)
+
 
     latest_close_price = next(
         (item['price'] for item in latest_price_data if item['stock_code'] == stock_code),
@@ -147,8 +140,11 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     revenue_t3m_yoy = get_last_valid_data(revenue_t3m_yoy)
     majority_shareholders_share_ratio = get_last_valid_data(majority_shareholders_share_ratio)
     total_shareholders_count = get_last_valid_data(total_shareholders_count)
+    volume_ratio = get_last_valid_data(volume_ratio)
+
 
     # 填充不足的部分
+
     epst4q = pad_list(epst4q, valid_length)
     PB = pad_list(PB, valid_length)
     revenue_per_share = pad_list(revenue_per_share, valid_length)
@@ -159,6 +155,8 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     majority_shareholders_share_ratio = pad_list(majority_shareholders_share_ratio, valid_length)
     total_shareholders_count = pad_list(total_shareholders_count, valid_length)
 
+
+
     return (revenue_per_share_yoy,
             price_data,
             revenue_per_share,
@@ -166,7 +164,7 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
             revenue_t3m_avg,
             revenue_t3m_yoy,
             majority_shareholders_share_ratio,
-            total_shareholders_count,epst4q, volume_m,volume_m_avg,
+            total_shareholders_count,epst4q, volume_m,volume_m_avg, volume_ratio ,
             latest_close_price)
 
 
@@ -337,6 +335,36 @@ def normalize_and_standardize_data(X):
 
     return X_standardized, standard_scaler
 
+def normalize_and_standardize_data_weight(X, weights=None):
+    """
+    对输入数据X进行标准化和归一化，并根据提供的权重进行调整。
+    
+    Parameters:
+    - X: 输入数据 (numpy array)
+    - weights: 特征权重 (numpy array), 如果提供，将对每个特征应用相应的权重。
+    
+    Returns:
+    - X_normalized: 归一化后的数据
+    - min_max_scaler: 归一化的Scaler对象
+    - standard_scaler: 标准化的Scaler对象
+    """
+    if X.ndim == 1:
+        X = X.reshape(-1, 1)
+
+    # 如果提供了权重，对X进行缩放
+    if weights is not None:
+        X = X * weights
+
+    # 标准化
+    standard_scaler = StandardScaler()
+    X_standardized = standard_scaler.fit_transform(X)
+
+    # 归一化到 [-1, 1] 范围
+    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
+    X_normalized = min_max_scaler.fit_transform(X_standardized)
+
+    return X_normalized, min_max_scaler, standard_scaler
+
 def linear_interpolation(data, target_length):
     """
     对数据进行线性插值，确保数据长度为 target_length。
@@ -429,7 +457,6 @@ def calculate_sign_changes(data):
         diff = filled_data[i] - filled_data[i - 1]
         differences.append(diff)
 
-
     return differences
 
 def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted_price , plot=False):
@@ -462,3 +489,54 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
         plt.show()
     # Close the figure to free up memory
     plt.close()
+
+
+def calculate_volume_ratio(NUM_DATA_POINTS,stock_code ):
+    # 文件路径
+    file_path = f'stockData/{stock_code}_m_vol.json'
+
+    # 打开并读取 JSON 文件
+    with open(file_path, 'r', encoding='utf-8') as file:
+        json_data = json.load(file)
+
+    # 提取数据
+    prices_high = []
+    prices_low = []
+    prices_avg = []
+    volumes = []
+
+
+    for entry in json_data['data']:
+        high = float(entry[2])
+        low = float(entry[3])
+        avg = float(entry[4])
+        volume = int(entry[-2].replace(',', ''))  # 移除逗号并转换为整数
+
+        prices_high.append(high)
+        prices_low.append(low)
+        prices_avg.append(avg)
+        volumes.append(volume)
+
+    # 计算 Volume Ratio (VR)
+    VR_values = []
+    for i in range(1, len(volumes)):
+        volume_ratio = volumes[i] / volumes[i - 1] if volumes[i - 1] != 0 else None
+        VR_values.append(volume_ratio)
+
+    return(volumes, VR_values)
+
+def print_lengths(*args):
+    """打印每个参数的长度"""
+    for i, arg in enumerate(args):
+        if isinstance(arg, (str, list, tuple, np.ndarray)):
+            # 处理字符串、列表、元组和NumPy数组
+            if isinstance(arg, np.ndarray):
+                # 对于NumPy数组，获取第一个维度的长度
+                length = arg.shape[0]
+            else:
+                length = len(arg)
+            print(f"Length of argument {i + 1}: {length}")
+        else:
+            print(f"Argument {i + 1} is not a supported type for length calculation.")
+
+    exit()

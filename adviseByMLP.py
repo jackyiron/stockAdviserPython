@@ -119,8 +119,19 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     final_mse = mean_squared_error(y_test, y_pred_final)
 
     # 使用最新数据进行预测
-    current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1],
-                                 epst4q_velocity[-1], majority_shareholders_share_ratio[-1], revenue_t3m_avg[-1], PB[-1], volume_m[-1], revenue_t3m_yoy_sign[-1]]])
+    current_feature = np.array([[
+        revenue_per_share[-1],
+        revenue_per_share_yoy[-1],
+        revenue_t3m_yoy[-1],
+        epst4q[-1],
+        epst4q_velocity[-1],
+        majority_shareholders_share_ratio[-1],
+        revenue_t3m_avg[-1],
+        PB[-1],
+        volume_m[-1],
+        revenue_t3m_yoy_sign[-1]
+    ]])
+
     current_feature_scaled = np.hstack((
         scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
         scaler_X2.transform(current_feature[:, 1].reshape(-1, 1)),
@@ -176,7 +187,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     # 绘图
     # Plot and save the results
-    plot_stock_analysis('mlp' , stock_name, stock_code, interpolated_price, predicted_price, False)
+    plot_stock_analysis('mlp' , stock_name, stock_code, interpolated_price, predicted_price, True)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
@@ -187,7 +198,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
 
 def main():
-    NUM_DATA_POINTS = 40  # 控制要使用的数据点数量
+    NUM_DATA_POINTS = 150   # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
