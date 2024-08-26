@@ -58,24 +58,20 @@ HEADERS = {
 def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code):
     """从本地文件获取股票数据"""
     file_path = f'stockData/{stock_code}.json'
-    volume_path= f'stockData/{stock_code}_m_vol.json'
+#    volume_path= f'stockData/{stock_code}_m_vol.json'
 
     if not os.path.exists(file_path) :
         raise ValueError(f"文件 {file_path} 不存在。请确保文件路径和股票代码正确。")
 
-    if not os.path.exists(volume_path) :
-        raise ValueError(f"文件 {volume_path} 不存在。请确保文件路径和股票代码正确。")
+#    if not os.path.exists(volume_path) :
+#        raise ValueError(f"文件 {volume_path} 不存在。请确保文件路径和股票代码正确。")
 
 
     with open(file_path, 'r', encoding='utf-8') as file:
         data = json.load(file)
 
-    with open(volume_path, 'r', encoding='utf-8') as file:
-        volume_data = json.load(file)
-
-
-    # 获取每个子列表的倒数第二个值，移除逗号并转换为整数
-    m_volume_data = [int(entry[-2].replace(',', '')) for entry in volume_data["data"]]
+#    with open(volume_path, 'r', encoding='utf-8') as file:
+#        volume_data = json.load(file)
 
 
     monthly_data = data.get("monthly", {})
@@ -89,10 +85,12 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
 
     #季度數據
     epst4q = extract_data_quarterly("EPST4Q")
-    # print(epst4q)
-    epst4q_interpolated , epst4q_interpolated_last = interpolate_quarterly_to_monthly(epst4q, NUM_DATA_POINTS)
-    #print(epst4q_interpolated_last)
-    #exit()
+    epst4q_velocity = calculate_sign_changes(epst4q)
+
+    # 计算每个月的 EPS 與 velocity
+    epst4q_interpolated = []
+    for eps in epst4q:
+        epst4q_interpolated.extend([eps / 3] * 3)  # 每个季度的 EPS 平均分配到三个月
 
     #get_volume_3m_avf
     volume_m = m_volume_data[-NUM_DATA_POINTS:]
@@ -103,6 +101,8 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     df['3_m_MA'] = df['volume'].rolling(window=3, min_periods=3).mean()
     # 移除前两个 NaN 值
     volume_m_avg = df['3_m_MA'].dropna().values.tolist()
+
+    
 
 
     PB = extract_data("PB")
@@ -336,36 +336,6 @@ def normalize_and_standardize_data(X):
     #X_normalized = min_max_scaler.fit_transform(X_standardized)
 
     return X_standardized, standard_scaler
-
-def normalize_and_standardize_data_weight(X, weights=None):
-    """
-    对输入数据X进行标准化和归一化，并根据提供的权重进行调整。
-    
-    Parameters:
-    - X: 输入数据 (numpy array)
-    - weights: 特征权重 (numpy array), 如果提供，将对每个特征应用相应的权重。
-    
-    Returns:
-    - X_normalized: 归一化后的数据
-    - min_max_scaler: 归一化的Scaler对象
-    - standard_scaler: 标准化的Scaler对象
-    """
-    if X.ndim == 1:
-        X = X.reshape(-1, 1)
-
-    # 如果提供了权重，对X进行缩放
-    if weights is not None:
-        X = X * weights
-
-    # 标准化
-    standard_scaler = StandardScaler()
-    X_standardized = standard_scaler.fit_transform(X)
-
-    # 归一化到 [-1, 1] 范围
-    min_max_scaler = MinMaxScaler(feature_range=(-1, 1))
-    X_normalized = min_max_scaler.fit_transform(X_standardized)
-
-    return X_normalized, min_max_scaler, standard_scaler
 
 def linear_interpolation(data, target_length):
     """
