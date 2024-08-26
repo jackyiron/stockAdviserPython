@@ -560,3 +560,16 @@ def print_lengths(*args):
             print(f"Argument {i + 1} is not a supported type for length calculation.")
 
     exit()
+
+
+def interpolate_multiple_data(**data_dict):
+    """
+    对多个数据集进行统一的样条插值。
+
+    :param data_dict: 需要插值的多个数据集，以关键字参数的形式传入
+    :return: 一个字典，包含插值后的数据
+    """
+    interpolated_data = {}
+    for key, value in data_dict.items():
+        interpolated_data[key] = spline_interpolation(np.array(value))
+    return interpolated_data
