@@ -27,6 +27,7 @@ import numpy as np
 import random
 import pandas as pd
 import matplotlib.ticker as ticker
+
 font_path = 'msyh.ttc'
 
 from matplotlib.font_manager import FontProperties
@@ -70,7 +71,10 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     with open(file_path, 'r', encoding='utf-8') as file:
         data = json.load(file)
 
-    m_volume_data , volume_ratio = calculate_volume_ratio(NUM_DATA_POINTS , stock_code)
+    try:
+        m_volume_data , volume_ratio = calculate_volume_ratio(NUM_DATA_POINTS , stock_code)
+    except:
+        return
 
     monthly_data = data.get("monthly", {})
     quarterly_data = data.get("quarterly", {})
@@ -105,6 +109,8 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
     revenue_t3m_yoy = extract_data("RevenueT3MYOY")
     majority_shareholders_share_ratio = extract_data("MajorityShareholdersShareRatio")
     total_shareholders_count = extract_data("TotalShareholdersCount")
+    if len(price_data) < NUM_DATA_POINTS:
+        return
 
     # 获取最新股价
     price_file_path = os.path.join('stockData', 'latest_price.json')
@@ -166,7 +172,6 @@ def fetch_stock_data(NUM_DATA_POINTS ,FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_cod
             majority_shareholders_share_ratio,
             total_shareholders_count,epst4q, volume_m,volume_m_avg, volume_ratio ,
             latest_close_price)
-
 
 def linear_interpolate_sign(data, target_length):
     """
@@ -489,30 +494,21 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     # Close the figure to free up memory
     plt.close()
 
-def calculate_volume_ratio(num , stock_code ,length=25):
+def calculate_volume_ratio(num , stock_code, length=12):
     # 文件路径
-    file_path = f'stockData/{stock_code}_m_vol.json'
+    file_path = f'stockData/month/{stock_code}.csv'
 
-    # 打开并读取 JSON 文件
-    with open(file_path, 'r', encoding='utf-8') as file:
-        json_data = json.load(file)
+    # 读取 CSV 文件
+    df = pd.read_csv(file_path)
 
-    # 提取数据
-    prices_close = []
-    volumes = []
-
-    for entry in json_data['data']:
-        close = float(entry[4])  # 假设收盘价在第 4列
-        volume = int(entry[-2].replace(',', ''))  # 移除逗号并转换为整数
-
-        prices_close.append(close)
-        volumes.append(volume)
+    # 提取所需列数据
+    prices_close = df['Close'].astype(float).values
+    volumes = df['Volume'].replace({',': ''}, regex=True).astype(float).values
 
     # 计算价格变化
     price_changes = np.diff(prices_close)
     weighted_volumes = []
 
-    # 计算加权成交量
     for i in range(len(price_changes)):
         if price_changes[i] > 0:
             weighted_volumes.append(volumes[i + 1])
@@ -528,9 +524,7 @@ def calculate_volume_ratio(num , stock_code ,length=25):
         return [], []
 
     for i in range(length - 1, len(weighted_volumes)):
-        # 计算加权成交量总和
         weighted_volume_sum = sum(weighted_volumes[i - length + 1:i + 1])
-        # 计算总成交量总和
         total_volume_sum = sum(volumes[i - length + 1:i + 1])
 
         if total_volume_sum > 0:
@@ -568,3 +562,33 @@ def interpolate_multiple_data(**data_dict):
     for key, value in data_dict.items():
         interpolated_data[key] = spline_interpolation(np.array(value))
     return interpolated_data
+
+def single_line_plot(x):
+    """
+    绘制单条直线图，仅输入X轴数据，Y轴数据自动生成。
+
+    参数:
+    x (list or np.array): X轴数据。
+    """
+
+    plt.figure(figsize=(8, 6))
+    plt.plot(x,  color='blue', linewidth=2, marker='o')  # 绘制直线图，设置颜色和线宽
+    plt.title(' X ')  # 自动生成的标题
+    plt.xlabel('X-axis')
+    plt.ylabel('Y-axis (2X)')
+    plt.grid(True)
+    plt.show()
+
+def calc_accuracy_percentage(price_data, final_mse):
+    final_rmse = np.sqrt(final_mse)  # 计算 RMSE
+    # 实际数据的范围
+    actual_max = np.max(price_data)
+    actual_min = np.min(price_data)
+    data_range = actual_max - actual_min
+    # 最大可能的相对误差（通常是数据的范围）
+    max_relative_error = data_range
+    # 计算相对误差
+    relative_error = final_rmse / max_relative_error
+    # 计算准确度
+    accuracy_percentage = (1 - relative_error) * 100
+    return  accuracy_percentage

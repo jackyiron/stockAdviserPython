@@ -1,25 +1,22 @@
-import numpy as np
-from sklearn.naive_bayes import GaussianNB
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-
-from sklearn.linear_model import BayesianRidge
-from sklearn.metrics import mean_squared_error
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split
-
 from sklearn.linear_model import BayesianRidge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import mean_squared_error
+
+from adviseByGradient import NUM_DATA_POINTS
+
 MODEL='bayes'
 
-def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
+def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
                   epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price):
     """分析股票数据"""
 
+
+    #single_line_plot(volume_ratio)
+
+    if len(price_data) < NUM_DATA_POINTS or len(volume_m) < NUM_DATA_POINTS:
+        return
     # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
     epst4q_velocity = calculate_sign_changes(epst4q)
@@ -46,6 +43,8 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     # 解包有效数据
     vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, \
     valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_volume, valid_vr_value, valid_sign = zip(*valid_data)
+
+
 
     # 将数据集打包后统一进行插值
     interpolated_data = interpolate_multiple_data(
@@ -85,6 +84,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     # 预测和评估
     y_pred_final = bayesian_ridge.predict(X_test)
     final_mse = mean_squared_error(y_test, y_pred_final)
+    accuracy_percentage = calc_accuracy_percentage(price_data, final_mse)
 
     # 预测和评估
     y_pred_final = bayesian_ridge.predict(X_test)
@@ -92,6 +92,8 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
 
     estimated_price_scaled = bayesian_ridge.predict(X_combined_normalize)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()
+    if len(estimated_price) < NUM_DATA_POINTS:
+        return
     estimated_price_last = estimated_price[-1]
 
     assert estimated_price.shape == interpolated_price.shape, "反归一化后的预测值形状不正确"
@@ -128,7 +130,7 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price_last:.2f} ({price_diff_percentage:.2f}%) {action} '
-                      f'MSE: {final_mse:.2f} </span><br>')
+                      f'訓練準確度: {accuracy_percentage:.2f}% </span><br>')
 
     return result_message
 
@@ -158,12 +160,19 @@ def main():
         stock_type = parts[2]
 
         try:
+            result = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code)
+
+            # 检查返回值是否为 None
+            if result is None:
+                continue
+
             (revenue_per_share_yoy, price_data, revenue_per_share, PB,
              revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
-             total_shareholders_count, epst4q ,volume_m , volume_m_avg ,volume_ratio ,latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
+             total_shareholders_count, epst4q, volume_m, volume_m_avg, volume_ratio,
+             latest_close_price) = result
 
 
-            result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
+            result = analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
                                    revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
                                    majority_shareholders_share_ratio, total_shareholders_count,epst4q, volume_m,
                                    volume_m_avg, volume_ratio,

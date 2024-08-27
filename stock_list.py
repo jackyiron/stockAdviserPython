@@ -9,6 +9,7 @@ headers = {
 
 # 對網站進行 requests，並加入指定的 headers 一同請求
 html_data = requests.get("https://isin.twse.com.tw/isin/C_public.jsp?strMode=2", headers=headers)
+html_data = requests.get("https://isin.twse.com.tw/isin/C_public.jsp?strMode=4", headers=headers)
 
 # 使用 io.StringIO 包裝 HTML 內容
 html_content = io.StringIO(html_data.text)
@@ -42,4 +43,4 @@ x = x[x["代號"].str.isdigit()]
 x = x[['代號', '股票名稱', '產業別']]
 
 # 儲存成 txt 文件，使用空白作為分隔符
-x.to_csv('stockList.txt', sep=' ', index=False, header=False)
+x.to_csv('stockList4.txt', sep=' ', index=False, header=False)

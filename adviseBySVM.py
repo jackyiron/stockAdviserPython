@@ -5,11 +5,12 @@ font_path = 'msyh.ttc'
 MODEL='svm'
 from matplotlib.font_manager import FontProperties
 
-def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
+def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
                   PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
                   epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price):
     """分析股票数据"""
-
+    if len(price_data) < NUM_DATA_POINTS or len(volume_m) < NUM_DATA_POINTS:
+        return
     # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
     epst4q_velocity = calculate_sign_changes(epst4q)
@@ -149,12 +150,19 @@ def main():
         stock_type = parts[2]
 
         try:
+            result = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE, stock_code)
+
+            # 检查返回值是否为 None
+            if result is None:
+                continue
+
             (revenue_per_share_yoy, price_data, revenue_per_share, PB,
              revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio,
-             total_shareholders_count, epst4q ,volume_m , volume_m_avg ,volume_ratio ,latest_close_price) = fetch_stock_data(NUM_DATA_POINTS, FETCH_LATEST_CLOSE_PRICE_ONLINE,  stock_code)
+             total_shareholders_count, epst4q, volume_m, volume_m_avg, volume_ratio,
+             latest_close_price) = result
 
 
-            result = analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
+            result = analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data,
                                    revenue_per_share, PB, revenue_t3m_avg, revenue_t3m_yoy,
                                    majority_shareholders_share_ratio, total_shareholders_count,epst4q, volume_m,
                                    volume_m_avg, volume_ratio,
