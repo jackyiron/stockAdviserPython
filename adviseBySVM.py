@@ -10,15 +10,9 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
                   epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price):
     """分析股票数据"""
 
-    #print_lengths(stock_name, stock_code, stock_type, revenue_per_share_yoy, price_data, revenue_per_share,
-     #             PB, revenue_t3m_avg, revenue_t3m_yoy, majority_shareholders_share_ratio, total_shareholders_count,
-     #             epst4q, volume_m, volume_m_avg, volume_ratio, latest_close_price)
-
     # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
     epst4q_velocity = calculate_sign_changes(epst4q)
-
-
 
     # 创建有效数据列表
     valid_data = [
@@ -39,75 +33,40 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     if not valid_data:
         return None
 
-
     # 解包有效数据
     vaild_revenue_per_share, vaild_revenue_per_share_yoy, valid_revenue, valid_price, valid_epst4q, valid_epst4q_velocity, \
     valid_majority_shareholders, valid_revenue_t3m_avg, valid_pb, valid_volume, valid_vr_value, valid_sign = zip(*valid_data)
 
-
-    # 对数据进行样条插值
-    interpolated_revenue_per_share = spline_interpolation(np.array(vaild_revenue_per_share))
-    interpolated_revenue_per_share_yoy = spline_interpolation(np.array(vaild_revenue_per_share_yoy))
-    interpolated_revenue = spline_interpolation(np.array(valid_revenue))
-    interpolated_price = spline_interpolation(np.array(valid_price))
-    interpolated_epst4q = spline_interpolation(np.array(valid_epst4q))
-    interpolated_epst4q_velocity = spline_interpolation(np.array(valid_epst4q_velocity))
-    interpolated_majority_shareholders = spline_interpolation(np.array(valid_majority_shareholders))
-    interpolated_revenue_t3m_avg = spline_interpolation(np.array(valid_revenue_t3m_avg))
-    interpolated_pb = spline_interpolation(np.array(valid_pb))
-    interpolated_volume = spline_interpolation(np.array(valid_volume))
-    interpolated_vr_value = spline_interpolation(np.array(valid_vr_value))
-    interpolated_sign = np.array(valid_sign)
-
-
-
-    # 准备时间序列数据
-    revenue_per_share_series = interpolated_revenue_per_share.reshape(-1, 1)
-    revenue_per_share_yoy_series = interpolated_revenue_per_share_yoy.reshape(-1, 1)
-    price_series = interpolated_price.reshape(-1, 1)
-    revenue_series = interpolated_revenue.reshape(-1, 1)
-    epst4q_series = interpolated_epst4q.reshape(-1, 1)
-    epst4q_velocity_series = interpolated_epst4q_velocity.reshape(-1, 1)
-    majority_shareholders_series = interpolated_majority_shareholders.reshape(-1, 1)
-    revenue_t3m_avg_series = interpolated_revenue_t3m_avg.reshape(-1, 1)
-    pb_series = interpolated_pb.reshape(-1, 1)
-    volume_series = interpolated_volume.reshape(-1, 1)
-    vr_series = interpolated_vr_value.reshape(-1, 1)
-    sign_series = interpolated_sign.reshape(-1, 1)
+    # 将数据集打包后统一进行插值
+    interpolated_data = interpolate_multiple_data(
+        revenue_per_share=vaild_revenue_per_share,
+        revenue_per_share_yoy=vaild_revenue_per_share_yoy,
+        revenue=valid_revenue,
+        epst4q=valid_epst4q,
+        epst4q_velocity=valid_epst4q_velocity,
+        majority_shareholders=valid_majority_shareholders,
+        revenue_t3m_avg=valid_revenue_t3m_avg,
+        pb=valid_pb,
+        volume=valid_volume,
+        vr_value=valid_vr_value,
+        sign=valid_sign
+    )
 
 
     # 正规化与归一化数据
-    revenue_per_share_normalized, scaler_X1 = normalize_and_standardize_data(revenue_per_share_series)
-    revenue_per_share_yoy_normalized, scaler_X2 = normalize_and_standardize_data(revenue_per_share_yoy_series)
-    revenue_normalized, scaler_X3 = normalize_and_standardize_data(revenue_series)
-    epst4q_normalized, scaler_X4 = normalize_and_standardize_data(epst4q_series)
-    epst4q_velocity_normalized, scaler_X5 = normalize_and_standardize_data(epst4q_velocity_series)
-    majority_shareholders_normalized, scaler_X6 = normalize_and_standardize_data(majority_shareholders_series)
-    revenue_t3m_avg_normalized, scaler_X7 = normalize_and_standardize_data(revenue_t3m_avg_series)
-    pb_normalized, scaler_X8 = normalize_and_standardize_data(pb_series)
-    volume_normalized, scaler_X9 = normalize_and_standardize_data(volume_series)
-    vr_normalized, scaler_X10 = normalize_and_standardize_data(vr_series)
-    sign_normalized, scaler_X11 = normalize_and_standardize_data(sign_series)
-    price_normalized, scaler_y = normalize_and_standardize_data(price_series)
-
+    interpolated_price = spline_interpolation(valid_price)
+    price_normalized, scaler_y = normalize_and_standardize_data(interpolated_price)
 
     # 合并数据
-    X_combined = np.hstack((
-        revenue_per_share_normalized.reshape(-1, 1),
-        revenue_per_share_yoy_normalized.reshape(-1, 1),
-        revenue_normalized.reshape(-1, 1),
-        epst4q_normalized.reshape(-1, 1),
-        epst4q_velocity_normalized.reshape(-1, 1),
-        majority_shareholders_normalized.reshape(-1, 1),
-        revenue_t3m_avg_normalized.reshape(-1, 1),
-        pb_normalized.reshape(-1, 1),
-        volume_normalized.reshape(-1, 1),
-        vr_normalized.reshape(-1, 1),
-        sign_normalized.reshape(-1, 1)
-    ))
+    # 对 interpolated_data 字典中的每个键值进行 reshape，然后堆叠成一个二维数组
+    X_combined = np.hstack([value.reshape(-1, 1) for value in interpolated_data.values()])
 
+    # 对输入特征进行标准化
+    X_combined_normalize , x_scaler = normalize_and_standardize_data(X_combined)
+
+    assert X_combined.shape[1] == 11, "X_combined 数据的特征数量应为 11"
     # 划分训练集和测试集
-    X_train, X_test, y_train, y_test = train_test_split(X_combined, price_normalized.flatten(), test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X_combined_normalize, price_normalized.flatten(), test_size=0.2, random_state=42)
 
     # 使用 SVM 模型
     svm_model = make_pipeline(StandardScaler(), SVR(kernel='rbf', C=1.0, epsilon=0.1))
@@ -118,28 +77,17 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
     y_pred_final = svm_model.predict(X_test)
     final_mse = mean_squared_error(y_test, y_pred_final)
 
-    # 使用最新数据进行预测
-    current_feature = np.array([[revenue_per_share[-1], revenue_per_share_yoy[-1], revenue_t3m_yoy[-1], epst4q[-1],
-                                 epst4q_velocity[-1], majority_shareholders_share_ratio[-1], revenue_t3m_avg[-1],
-                                 PB[-1], volume_m[-1], volume_ratio[-1], revenue_t3m_yoy_sign[-1]]])
-    current_feature_scaled = np.hstack((
-        scaler_X1.transform(current_feature[:, 0].reshape(-1, 1)),
-        scaler_X2.transform(current_feature[:, 1].reshape(-1, 1)),
-        scaler_X3.transform(current_feature[:, 2].reshape(-1, 1)),
-        scaler_X4.transform(current_feature[:, 3].reshape(-1, 1)),
-        scaler_X5.transform(current_feature[:, 4].reshape(-1, 1)),
-        scaler_X6.transform(current_feature[:, 5].reshape(-1, 1)),
-        scaler_X7.transform(current_feature[:, 6].reshape(-1, 1)),
-        scaler_X8.transform(current_feature[:, 7].reshape(-1, 1)),
-        scaler_X9.transform(current_feature[:, 8].reshape(-1, 1)),
-        scaler_X10.transform(current_feature[:, 9].reshape(-1, 1)),
-        scaler_X11.transform(current_feature[:, 10].reshape(-1, 1))
-    ))
-    estimated_price_scaled = svm_model.predict(current_feature_scaled)
-    estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()[0]
+    # 预测和评估
+    y_pred_final = svm_model.predict(X_test)
+    assert y_pred_final.shape == y_test.shape, "预测结果与测试集标签的形状不匹配"
 
+    estimated_price_scaled = svm_model.predict(X_combined_normalize)
+    estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()
+    estimated_price_last = estimated_price[-1]
+
+    assert estimated_price.shape == interpolated_price.shape, "反归一化后的预测值形状不正确"
     # 计算价格差异
-    price_difference = estimated_price - latest_close_price
+    price_difference = estimated_price_last - latest_close_price
     price_diff_percentage = price_difference / latest_close_price * 100
 
     # 根据价格差异和 EPST4Q 的值确定颜色和操作
@@ -159,31 +107,18 @@ def analyze_stock(stock_name, stock_code, stock_type, revenue_per_share_yoy, pri
         color = 'black'
         action = ''
 
-    # Predict full data set for plotting
-    combined_features_all = np.hstack((
-        revenue_per_share_normalized.reshape(-1, 1),
-        revenue_per_share_yoy_normalized.reshape(-1, 1),
-        revenue_normalized.reshape(-1, 1),
-        epst4q_normalized.reshape(-1, 1),
-        epst4q_velocity_normalized.reshape(-1, 1),
-        majority_shareholders_normalized.reshape(-1, 1),
-        revenue_t3m_avg_normalized.reshape(-1, 1),
-        pb_normalized.reshape(-1, 1),
-        volume_normalized.reshape(-1, 1),
-        vr_normalized.reshape(-1, 1),
-        sign_normalized.reshape(-1, 1)
-    ))
-
-    predicted_price = svm_model.predict(combined_features_all)
-    predicted_price = scaler_y.inverse_transform(predicted_price.reshape(-1, 1)).ravel()
+    interpolated_price = np.append((interpolated_price),latest_close_price)
+    df = pd.DataFrame(estimated_price, columns=['Value'])
+    # 計算 5 日移動平均值
+    df['3_day_MA'] = df['Value'].rolling(window=3).mean()
 
     # 绘图
     # Plot and save the results
-    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, predicted_price, False)
+    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,False)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
-                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price:.2f} ({price_diff_percentage:.2f}%) {action} '
+                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price_last:.2f} ({price_diff_percentage:.2f}%) {action} '
                       f'MSE: {final_mse:.2f} </span><br>')
 
     return result_message
@@ -252,4 +187,3 @@ from stockPublicFunction import *
 
 if __name__ == "__main__":
     main()
-
