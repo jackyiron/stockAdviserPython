@@ -75,7 +75,7 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
     assert X_combined.shape[1] == 11, "X_combined 数据的特征数量应为 11"
     # 划分训练集和测试集
-    X_train, X_test, y_train, y_test = train_test_split(X_combined_normalize, price_normalized.flatten(), test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X_combined_normalize, price_normalized.flatten(), test_size=0.8, random_state=42)
 
     # 使用贝叶斯回归模型
     bayesian_ridge = make_pipeline(PolynomialFeatures(degree=1), BayesianRidge())
@@ -136,7 +136,7 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
 
 def main():
-    NUM_DATA_POINTS = 120  # 控制要使用的数据点数量
+    NUM_DATA_POINTS = 150  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
