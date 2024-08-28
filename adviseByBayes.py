@@ -121,7 +121,7 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
     interpolated_price = np.append((interpolated_price),latest_close_price)
     df = pd.DataFrame(estimated_price, columns=['Value'])
     # 計算 5 日移動平均值
-    df['3_day_MA'] = df['Value'].rolling(window=3).mean()
+    df['5_day_MA'] = df['Value'].rolling(window=3).mean()
 
     # 绘图
     # Plot and save the results
@@ -136,7 +136,7 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
 
 def main():
-    NUM_DATA_POINTS = 150  # 控制要使用的数据点数量
+    NUM_DATA_POINTS = 120  # 控制要使用的数据点数量
     FETCH_LATEST_CLOSE_PRICE_ONLINE = False  # 設置為 True 以從線上獲取最新股價，False 則使用本地文>件數據
     results = []  # 收集结果以便于同时写入文件和屏幕显示
 
