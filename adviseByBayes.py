@@ -2,8 +2,7 @@ from sklearn.linear_model import BayesianRidge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import mean_squared_error
-
-from adviseByGradient import NUM_DATA_POINTS
+from importlib_metadata import metadata, version
 
 MODEL='bayes'
 
@@ -15,7 +14,7 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
     #single_line_plot(volume_ratio)
 
-    if len(price_data) < NUM_DATA_POINTS or len(volume_m) < NUM_DATA_POINTS:
+    if len(price_data) < NUM_DATA_POINTS/2 or len(volume_m) < NUM_DATA_POINTS/2:
         return
     # 提取 revenue_t3m_yoy, epst4q 的符号信息
     revenue_t3m_yoy_sign = calculate_sign_changes(revenue_t3m_yoy)
@@ -97,21 +96,50 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
     estimated_price_last = estimated_price[-1]
 
     assert estimated_price.shape == interpolated_price.shape, "反归一化后的预测值形状不正确"
-    # 计算价格差异
+
+    # 定义买入和卖出阈值的范围
+    buy_range = np.arange(-20, 0, 1)  # Buy thresholds from -10% to -1%
+    sell_range = np.arange(1, 21, 1)  # Sell thresholds from 1% to 9%
+    # 设置周期范围
+    periods = range(6, len(estimated_price), 3)
+    best_return = -np.inf
+    best_buy_threshold = None
+    best_sell_threshold = None
+    best_period = None
+
+    for period in periods:
+        # 对数据进行周期处理
+        processed_estimated_price, processed_interpolated_price = process_period(estimated_price, interpolated_price, period)
+        
+        # 执行回测策略
+        period_best_return, period_best_buy_threshold, period_best_sell_threshold = backtest_strategy(
+            processed_estimated_price[-period:],
+            processed_interpolated_price[-period:],
+            buy_range,
+            sell_range
+        )
+        
+        # 记录最佳周期及其对应的买入、卖出阈值和回报
+        if period_best_return > best_return:
+            best_return = period_best_return
+            best_buy_threshold = period_best_buy_threshold
+            best_sell_threshold = period_best_sell_threshold
+            best_period = period
+
     price_difference = estimated_price_last - latest_close_price
     price_diff_percentage = price_difference / latest_close_price * 100
 
     # 根据价格差异和 EPST4Q 的值确定颜色和操作
-    if price_diff_percentage > 50:
+    if price_diff_percentage > 30:
         color = 'lightseagreen'
         action = '强力买入'
-    elif price_diff_percentage < -50:
+    elif price_diff_percentage < -30:
         color = 'darkred'
         action = '强力卖出'
-    elif 20 <= price_diff_percentage <= 50:
+    elif 10 <= price_diff_percentage <= 30:
         color = 'green'
         action = '买入'
-    elif -50 <= price_diff_percentage <= -20:
+    elif -30 <= price_diff_percentage <= -10:
         color = 'red'
         action = '卖出'
     else:
@@ -125,12 +153,16 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
     # 绘图
     # Plot and save the results
-    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,False)
+    #plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,False)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
                       f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price_last:.2f} ({price_diff_percentage:.2f}%) {action} '
-                      f'訓練準確度: {accuracy_percentage:.2f}% </span><br>')
+                      f'最佳买入: {best_buy_threshold:.2f}% 最佳卖出 {best_sell_threshold:.2f}%' 
+                      f'最大投资回报率: {best_return:.2f}%'
+                      f'最佳投资时间: {best_period:.2f} </sapn> <br>')
+
+
 
     return result_message
 
@@ -200,6 +232,7 @@ def main():
     if 'price_data' in locals():
         num_data_points_used = len(price_data)
         print(f"本次使用了 {num_data_points_used} 个数据点分析")
+
 
 from stockPublicFunction import *
 

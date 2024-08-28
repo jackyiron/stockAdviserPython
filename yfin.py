@@ -62,7 +62,6 @@ for stock_no in stock_list:
         auto_adjust=True,
         back_adjust=False
     )
-
     # 使用 history 方法獲取歷史數據
     if not historical_data.empty:
         # 將數據保存為 CSV 文件
