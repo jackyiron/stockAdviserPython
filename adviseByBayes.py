@@ -97,34 +97,13 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
     assert estimated_price.shape == interpolated_price.shape, "反归一化后的预测值形状不正确"
 
-    # 定义买入和卖出阈值的范围
-    buy_range = np.arange(-20, 0, 1)  # Buy thresholds from -10% to -1%
-    sell_range = np.arange(1, 21, 1)  # Sell thresholds from 1% to 9%
-    # 设置周期范围
-    periods = range(6, len(estimated_price), 3)
-    best_return = -np.inf
-    best_buy_threshold = None
-    best_sell_threshold = None
-    best_period = None
-
-    for period in periods:
-        # 对数据进行周期处理
-        processed_estimated_price, processed_interpolated_price = process_period(estimated_price, interpolated_price, period)
-        
-        # 执行回测策略
-        period_best_return, period_best_buy_threshold, period_best_sell_threshold = backtest_strategy(
-            processed_estimated_price[-period:],
-            processed_interpolated_price[-period:],
-            buy_range,
-            sell_range
-        )
-        
-        # 记录最佳周期及其对应的买入、卖出阈值和回报
-        if period_best_return > best_return:
-            best_return = period_best_return
-            best_buy_threshold = period_best_buy_threshold
-            best_sell_threshold = period_best_sell_threshold
-            best_period = period
+    # 预测未来6个数据点
+    future_periods = 6
+    future_features = np.hstack([value.reshape(-1, 1) for value in interpolated_data.values()])
+    future_features = np.concatenate([X_combined[-NUM_DATA_POINTS:], future_features[-future_periods:]], axis=0)
+    future_features_normalized, _ = normalize_and_standardize_data(future_features)
+    future_predictions_scaled = bayesian_ridge.predict(future_features_normalized)
+    future_predictions = scaler_y.inverse_transform(future_predictions_scaled.reshape(-1, 1)).ravel()
 
     price_difference = estimated_price_last - latest_close_price
     price_diff_percentage = price_difference / latest_close_price * 100
@@ -146,22 +125,14 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
         color = 'black'
         action = ''
 
-    interpolated_price = np.append((interpolated_price),latest_close_price)
-    df = pd.DataFrame(estimated_price, columns=['Value'])
-    # 計算 5 日移動平均值
-    df['5_day_MA'] = df['Value'].rolling(window=3).mean()
 
     # 绘图
     # Plot and save the results
-    #plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,False)
+    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, future_predictions ,True)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
-                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price_last:.2f} ({price_diff_percentage:.2f}%) {action} '
-                      f'最佳买入: {best_buy_threshold:.2f}% 最佳卖出 {best_sell_threshold:.2f}%' 
-                      f'最大投资回报率: {best_return:.2f}%'
-                      f'最佳投资时间: {best_period:.2f} </sapn> <br>')
-
+                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price_last:.2f} ({price_diff_percentage:.2f}%) {action} </sapn> <br>')
 
 
     return result_message

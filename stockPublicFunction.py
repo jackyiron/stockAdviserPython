@@ -475,6 +475,13 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     # Plot predicted stock price
     plt.plot(predicted_price, label='预测股价', color='orange')
 
+    # Highlight the last 6 points
+    # if len(aligned_price) >= 6:
+    #      # Last 6 points for predicted prices
+    #     plt.plot(range(len(predicted_price) - 6, len(predicted_price)), predicted_price[-6:],
+    #              label='预测股价（最后6点）')
+
+
     # Customize plot
     plt.title(f'{stock_name} ({stock_code}) - 实际股价与预测股价对比')
     plt.xlabel('时间')
@@ -593,54 +600,3 @@ def calc_accuracy_percentage(price_data, final_mse):
     # 计算准确度
     accuracy_percentage = (1 - relative_error) * 100
     return  accuracy_percentage
-
-import numpy as np
-import pandas as pd
-def backtest_strategy(estimated_price, interpolated_price, buy_range, sell_range):
-    initial_investment = 10000
-    best_total_return = -float('inf')
-    best_buy_threshold = None
-    best_sell_threshold = None
-    
-    for buy_threshold, sell_threshold in product(buy_range, sell_range):
-        total_return = execute_strategy(estimated_price, interpolated_price, buy_threshold, sell_threshold, initial_investment)
-        total_return_percentage = (total_return / initial_investment) * 100
-        
-        if total_return_percentage > best_total_return:
-            best_total_return = total_return_percentage
-            best_buy_threshold = buy_threshold
-            best_sell_threshold = sell_threshold
-    
-    return best_total_return, best_buy_threshold, best_sell_threshold
-
-def execute_strategy(estimated_price, interpolated_price, buy_threshold, sell_threshold, initial_investment):
-    total_return = 0
-    investment = initial_investment
-    shares = 0
-    
-    # Track the investment and shares
-    for est, interp in zip(estimated_price, interpolated_price):
-        price_diff_percentage = (est - interp) / interp * 100
-        
-        if price_diff_percentage <= buy_threshold and investment > 0:
-            # Buy condition
-            shares = investment / interp
-            investment = 0
- #           print(f"Buy at {interp:.2f}, Shares: {shares:.2f}")
-        elif price_diff_percentage >= sell_threshold and shares > 0:
-            # Sell condition
-            investment = shares * interp
-            shares = 0
-#            print(f"Sell at {interp:.2f}, Investment: {investment:.2f}")
-    
-    # Calculate final return
-    if shares > 0:
-        investment += shares * estimated_price[-1]  # Sell at the last estimated price
-
-    total_return = investment - initial_investment
-    return total_return
-
-def process_period(estimated_price, interpolated_price, period):
-    """处理数据以匹配周期"""
-    # 这里可以添加你的周期处理逻辑
-    return estimated_price, interpolated_price
