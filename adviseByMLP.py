@@ -90,6 +90,7 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()
     estimated_price_last = estimated_price[-1]
 
+
     assert estimated_price.shape == interpolated_price.shape, "反归一化后的预测值形状不正确"
     # 计算价格差异
     price_difference = estimated_price_last - latest_close_price

@@ -115,7 +115,7 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
     # 绘图
     # Plot and save the results
-    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,False)
+    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,True)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '

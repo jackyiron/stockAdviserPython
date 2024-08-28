@@ -476,10 +476,10 @@ def plot_stock_analysis(model , stock_name, stock_code, aligned_price, predicted
     plt.plot(predicted_price, label='预测股价', color='orange')
 
     # Highlight the last 6 points
-    # if len(aligned_price) >= 6:
-    #      # Last 6 points for predicted prices
-    #     plt.plot(range(len(predicted_price) - 6, len(predicted_price)), predicted_price[-6:],
-    #              label='预测股价（最后6点）')
+    if len(aligned_price) >= 6:
+        # Last 6 points for predicted prices
+        plt.plot(range(len(predicted_price) - 6, len(predicted_price)), predicted_price[-6:],
+                label='预测股价（最后6点）', color='red')
 
 
     # Customize plot

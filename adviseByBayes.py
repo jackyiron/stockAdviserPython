@@ -3,6 +3,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import PolynomialFeatures
 from sklearn.metrics import mean_squared_error
 from importlib_metadata import metadata, version
+from sklearn.model_selection import cross_val_score, KFold
 
 MODEL='bayes'
 
@@ -60,7 +61,6 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
         sign=valid_sign
     )
 
-
     # 正规化与归一化数据
     interpolated_price = spline_interpolation(valid_price)
     price_normalized, scaler_y = normalize_and_standardize_data(interpolated_price)
@@ -74,36 +74,26 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
     assert X_combined.shape[1] == 11, "X_combined 数据的特征数量应为 11"
     # 划分训练集和测试集
-    X_train, X_test, y_train, y_test = train_test_split(X_combined_normalize, price_normalized.flatten(), test_size=0.8, random_state=42)
+    # 进行交叉验证
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    model = make_pipeline(PolynomialFeatures(degree=1), BayesianRidge())
 
-    # 使用贝叶斯回归模型
-    bayesian_ridge = make_pipeline(PolynomialFeatures(degree=1), BayesianRidge())
-    bayesian_ridge.fit(X_train, y_train)
+    # 计算每个折的均方误差
+    cv_scores = cross_val_score(model, X_combined_normalize, price_normalized.flatten(), cv=kf, scoring='neg_mean_squared_error')
+    mean_cv_mse = -cv_scores.mean()
+    mean_cv_rmse = round(np.sqrt(mean_cv_mse),2)  # 计算均方根误差 (RMSE)
 
-    # 预测和评估
-    y_pred_final = bayesian_ridge.predict(X_test)
-    final_mse = mean_squared_error(y_test, y_pred_final)
-    accuracy_percentage = calc_accuracy_percentage(price_data, final_mse)
-
-    # 预测和评估
-    y_pred_final = bayesian_ridge.predict(X_test)
-    assert y_pred_final.shape == y_test.shape, "预测结果与测试集标签的形状不匹配"
-
-    estimated_price_scaled = bayesian_ridge.predict(X_combined_normalize)
+    # 使用全数据进行训练和预测
+    model.fit(X_combined_normalize, price_normalized.flatten())
+    estimated_price_scaled = model.predict(X_combined_normalize)
     estimated_price = scaler_y.inverse_transform(estimated_price_scaled.reshape(-1, 1)).ravel()
+
+
     if len(estimated_price) < NUM_DATA_POINTS:
         return
     estimated_price_last = estimated_price[-1]
 
     assert estimated_price.shape == interpolated_price.shape, "反归一化后的预测值形状不正确"
-
-    # 预测未来6个数据点
-    future_periods = 6
-    future_features = np.hstack([value.reshape(-1, 1) for value in interpolated_data.values()])
-    future_features = np.concatenate([X_combined[-NUM_DATA_POINTS:], future_features[-future_periods:]], axis=0)
-    future_features_normalized, _ = normalize_and_standardize_data(future_features)
-    future_predictions_scaled = bayesian_ridge.predict(future_features_normalized)
-    future_predictions = scaler_y.inverse_transform(future_predictions_scaled.reshape(-1, 1)).ravel()
 
     price_difference = estimated_price_last - latest_close_price
     price_diff_percentage = price_difference / latest_close_price * 100
@@ -128,11 +118,11 @@ def analyze_stock(NUM_DATA_POINTS, stock_name, stock_code, stock_type, revenue_p
 
     # 绘图
     # Plot and save the results
-    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, future_predictions ,True)
+    plot_stock_analysis(MODEL , stock_name, stock_code, interpolated_price, estimated_price ,False)
 
     # 返回结果信息
     result_message = (f'<span style="color: {color};">{stock_name} {stock_code} ({stock_type}) - '
-                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price_last:.2f} ({price_diff_percentage:.2f}%) {action} </sapn> <br>')
+                      f'实际股价: {latest_close_price:.2f}, 推算股价: {estimated_price_last:.2f} ({price_diff_percentage:.2f}%) 誤差: {mean_cv_rmse} - {action} </sapn> <br>')
 
 
     return result_message
